@@ -1,0 +1,728 @@
+import { getDb } from "./db";
+import { initiatives, organizations, posts, comments, userProfiles, users, type Initiative, type InsertInitiative, type InsertOrganization, type InsertPost } from "../drizzle/schema";
+import { ENV } from "./_core/env";
+
+/**
+ * Seed data for JanConnect - Realistic Indian civic initiatives
+ */
+const orgs: InsertOrganization[] = [
+  {
+    name: "Green Earth India",
+    description: "A leading environmental NGO focused on tree plantation drives, waste management, and climate action across Indian cities.",
+    contactEmail: "contact@greenearth.in",
+    contactPhone: "+91 98765 43210",
+    website: "https://greenearth.in",
+    verified: true,
+  },
+  {
+    name: "Teach For India Foundation",
+    description: "Empowering underprivileged children through quality education and community tutoring programs.",
+    contactEmail: "hello@teachforindia.org",
+    contactPhone: "+91 87654 32109",
+    website: "https://teachforindia.org",
+    verified: true,
+  },
+  {
+    name: "BloodBridge Volunteers",
+    description: "A volunteer-driven organization facilitating blood donation camps and donor-recipient matching across India.",
+    contactEmail: "info@bloodbridge.org",
+    contactPhone: "+91 76543 21098",
+    verified: true,
+  },
+  {
+    name: "Animal SOS Mumbai",
+    description: "Rescuing and rehabilitating street animals in Mumbai through community-driven rescue operations.",
+    contactEmail: "rescue@animalsos.in",
+    contactPhone: "+91 65432 10987",
+    verified: false,
+  },
+  {
+    name: "Relief Force India",
+    description: "Rapid-response disaster relief organization providing emergency aid during floods, earthquakes, and cyclones.",
+    contactEmail: "emergency@reliefforce.in",
+    website: "https://reliefforce.in",
+    verified: true,
+  },
+  {
+    name: "Civic Voice Coalition",
+    description: "A network of citizen groups advocating for transparent governance, participatory budgeting, and public policy reform.",
+    contactEmail: "voice@civicvoice.org",
+    contactPhone: "+91 54321 09876",
+    website: "https://civicvoice.org",
+    verified: true,
+  },
+];
+
+const initiativesData: InsertInitiative[] = [
+  // Environment
+  {
+    title: "Green Mumbai Drive 2026",
+    description: "Join us for a massive tree plantation drive across Mumbai's western suburbs. We aim to plant 10,000 native saplings along roadsides, parks, and public spaces. Volunteers will receive free saplings, gloves, and refreshments. This initiative is part of the larger 'Green India 2026' campaign supported by the Municipal Corporation.",
+    category: "Environment",
+    status: "upcoming",
+    verified: true,
+    address: "Juhu Beach, Juhu, Mumbai",
+    city: "Mumbai",
+    state: "Maharashtra",
+    latitude: 19.0883,
+    longitude: 72.8266,
+    startDate: new Date("2026-09-15T07:00:00Z"),
+    endDate: new Date("2026-09-15T12:00:00Z"),
+    contactInfo: "Call: +91 98765 43210 | Email: drive@greenearth.in",
+    registrationLink: "https://greenearth.in/mumbai-drive",
+    participantCount: 342,
+  },
+  {
+    title: "Plastic-Free Pune Initiative",
+    description: "A community-led campaign to eliminate single-use plastics from Pune's markets and residential areas. Volunteers will conduct awareness workshops, distribute cloth bags, and set up recycling collection points in 15 wards.",
+    category: "Environment",
+    status: "ongoing",
+    verified: true,
+    address: "FC Road, Shivajinagar, Pune",
+    city: "Pune",
+    state: "Maharashtra",
+    latitude: 18.5314,
+    longitude: 73.8446,
+    startDate: new Date("2026-08-01T08:00:00Z"),
+    endDate: new Date("2026-10-31T18:00:00Z"),
+    contactInfo: "WhatsApp: +91 87654 32100",
+    registrationLink: "https://greenearth.in/pune-plastic-free",
+    participantCount: 156,
+  },
+  {
+    title: "Lake Cleanup - Bellandur Lake",
+    description: "A weekend cleanup drive at the iconic Bellandur Lake in Bangalore. The lake has been suffering from severe pollution and foam buildup. Join us to remove waste, document pollution sources, and create a petition for long-term restoration.",
+    category: "Environment",
+    status: "upcoming",
+    verified: false,
+    address: "Bellandur Lake, Outer Ring Road, Bangalore",
+    city: "Bangalore",
+    state: "Karnataka",
+    latitude: 12.9353,
+    longitude: 77.6977,
+    startDate: new Date("2026-09-07T06:30:00Z"),
+    endDate: new Date("2026-09-07T11:00:00Z"),
+    contactInfo: "Email: bellandur@greenearth.in",
+    registrationLink: null,
+    participantCount: 89,
+  },
+  // Education
+  {
+    title: "Digital Literacy Workshop for Senior Citizens",
+    description: "Teaching basic digital skills to senior citizens in Delhi NCR - using smartphones, UPI payments, video calling, and online safety. Sessions held every Saturday for 3 months. Volunteers needed as facilitators.",
+    category: "Education",
+    status: "ongoing",
+    verified: true,
+    address: "Community Centre, Lajpat Nagar, New Delhi",
+    city: "New Delhi",
+    state: "Delhi",
+    latitude: 28.5677,
+    longitude: 77.2433,
+    startDate: new Date("2026-07-15T10:00:00Z"),
+    endDate: new Date("2026-10-15T12:00:00Z"),
+    contactInfo: "Phone: +91 11-2641 5678",
+    registrationLink: "https://teachforindia.org/digital-literacy",
+    participantCount: 45,
+  },
+  {
+    title: "Rural School Library Project",
+    description: "Building and stocking libraries in 20 rural schools across Rajasthan. Each library will have 500+ books in Hindi and English, plus reading nooks and storytelling sessions. Volunteers can donate books or spend weekends helping build the library spaces.",
+    category: "Education",
+    status: "upcoming",
+    verified: true,
+    address: "Village Schools, Jaipur District, Rajasthan",
+    city: "Jaipur",
+    state: "Rajasthan",
+    latitude: 26.9124,
+    longitude: 75.7873,
+    startDate: new Date("2026-10-01T09:00:00Z"),
+    endDate: new Date("2026-12-31T17:00:00Z"),
+    contactInfo: "Email: libraries@teachforindia.org",
+    registrationLink: "https://teachforindia.org/rural-libraries",
+    participantCount: 28,
+  },
+  // Healthcare
+  {
+    title: "Free Health Checkup Camp - Slum Areas",
+    description: "Monthly free health checkup camps in Mumbai's slum areas providing blood pressure monitoring, blood sugar tests, BMI assessment, and basic consultation. Organized by medical volunteers from Tata Memorial Hospital.",
+    category: "Healthcare",
+    status: "ongoing",
+    verified: true,
+    address: "Dharavi Community Hall, Mumbai",
+    city: "Mumbai",
+    state: "Maharashtra",
+    latitude: 19.0414,
+    longitude: 72.8607,
+    startDate: new Date("2026-06-01T08:00:00Z"),
+    endDate: new Date("2026-12-31T14:00:00Z"),
+    contactInfo: "Dr. Sharma: +91 99887 76655",
+    registrationLink: null,
+    participantCount: 1200,
+  },
+  {
+    title: "Mental Health Awareness Walk",
+    description: "A 5km awareness walk through Chennai's Marina Beach to break the stigma around mental health. Free counseling booths will be set up along the route. Participants receive awareness kits and can connect with local mental health professionals.",
+    category: "Healthcare",
+    status: "upcoming",
+    verified: false,
+    address: "Marina Beach, Chennai",
+    city: "Chennai",
+    state: "Tamil Nadu",
+    latitude: 13.0500,
+    longitude: 80.2824,
+    startDate: new Date("2026-10-10T06:00:00Z"),
+    endDate: new Date("2026-10-10T10:00:00Z"),
+    contactInfo: "Email: walk@healthawareness.in",
+    registrationLink: "https://healthawareness.in/chennai-walk",
+    participantCount: 0,
+  },
+  // Blood Donation
+  {
+    title: "Blood Donation Mega Camp - Bangalore",
+    description: "The largest blood donation camp in Bangalore this year, organized in partnership with the Indian Red Cross Society. Over 500 units of blood collection target. Free health screening, refreshments, and certificates for all donors. Mobile blood bank vans will be available.",
+    category: "Blood Donation",
+    status: "upcoming",
+    verified: true,
+    address: "Bangalore Palace Grounds, Jayamahal",
+    city: "Bangalore",
+    state: "Karnataka",
+    latitude: 13.0070,
+    longitude: 77.5967,
+    startDate: new Date("2026-09-20T08:00:00Z"),
+    endDate: new Date("2026-09-20T17:00:00Z"),
+    contactInfo: "Helpline: 1800-180-1945 | Email: blood@bloodbridge.org",
+    registrationLink: "https://bloodbridge.org/bangalore-mega-camp",
+    participantCount: 520,
+  },
+  {
+    title: "Emergency Blood Drive - Kerala Floods",
+    description: "Urgent blood donation drive for Kerala flood victims. O-negative and AB-negative blood types urgently needed. Drive organized by BloodBridge Volunteers in coordination with Red Cross Kerala chapter.",
+    category: "Blood Donation",
+    status: "ongoing",
+    verified: true,
+    address: "District Hospital, Kollam, Kerala",
+    city: "Kollam",
+    state: "Kerala",
+    latitude: 8.8932,
+    longitude: 76.5904,
+    startDate: new Date("2026-08-10T09:00:00Z"),
+    endDate: new Date("2026-08-10T16:00:00Z"),
+    contactInfo: "Emergency: +91 94000 12345",
+    registrationLink: null,
+    participantCount: 234,
+  },
+  // Animal Welfare
+  {
+    title: "Street Dog Sterilization Drive",
+    description: "ABC (Animal Birth Control) program in collaboration with Mumbai Municipal Corporation. Veterinary volunteers will sterilize and vaccinate street dogs across 8 wards of South Mumbai. Volunteers can help with catchment, post-op care, and monitoring.",
+    category: "Animal Welfare",
+    status: "ongoing",
+    verified: true,
+    address: "Various locations, South Mumbai",
+    city: "Mumbai",
+    state: "Maharashtra",
+    latitude: 18.9220,
+    longitude: 72.8347,
+    startDate: new Date("2026-07-01T07:00:00Z"),
+    endDate: new Date("2026-11-30T18:00:00Z"),
+    contactInfo: "Dr. Mehta: +91 98198 76543",
+    registrationLink: "https://animalsos.in/sterilization-drive",
+    participantCount: 67,
+  },
+  {
+    title: "Wildlife Rescue Training Workshop",
+    description: "A 2-day intensive workshop on wildlife rescue techniques, first aid for injured animals, and safe handling of snakes, birds, and mammals. Conducted by certified wildlife rescuers from Wildlife Trust of India.",
+    category: "Animal Welfare",
+    status: "upcoming",
+    verified: false,
+    address: "Sanjay Gandhi National Park, Borivali, Mumbai",
+    city: "Mumbai",
+    state: "Maharashtra",
+    latitude: 19.2220,
+    longitude: 72.9130,
+    startDate: new Date("2026-11-15T09:00:00Z"),
+    endDate: new Date("2026-11-16T17:00:00Z"),
+    contactInfo: "Email: training@animalsos.in",
+    registrationLink: "https://animalsos.in/wildlife-training",
+    participantCount: 0,
+  },
+  // Disaster Relief
+  {
+    title: "Flood Relief Supply Chain - Assam",
+    description: "Organizing relief material distribution for flood-affected families in Assam. Volunteers needed for sorting, packing, and transporting supplies including food packets, medicines, clean water, and clothing. Distribution centers in Guwahati and Dhemaji.",
+    category: "Disaster Relief",
+    status: "ongoing",
+    verified: true,
+    address: "Relief Distribution Center, Guwahati",
+    city: "Guwahati",
+    state: "Assam",
+    latitude: 26.1445,
+    longitude: 91.7362,
+    startDate: new Date("2026-08-01T06:00:00Z"),
+    endDate: new Date("2026-10-31T20:00:00Z"),
+    contactInfo: "Coordinator: +91 70024 56789",
+    registrationLink: null,
+    participantCount: 189,
+  },
+  {
+    title: "Earthquake Preparedness Drill - Uttarakhand",
+    description: "Community earthquake preparedness program in Uttarakhand's seismically active zones. Training on evacuation procedures, emergency kit preparation, and first aid. Target: 50 villages across Dehradun and Haridwar districts.",
+    category: "Disaster Relief",
+    status: "upcoming",
+    verified: true,
+    address: "Community Hall, Mussoorie Road, Dehradun",
+    city: "Dehradun",
+    state: "Uttarakhand",
+    latitude: 30.3165,
+    longitude: 78.0322,
+    startDate: new Date("2026-10-05T08:00:00Z"),
+    endDate: new Date("2026-10-05T16:00:00Z"),
+    contactInfo: "Phone: +91 87654 12345",
+    registrationLink: "https://reliefforce.in/earthquake-prep",
+    participantCount: 0,
+  },
+  // Community Service
+  {
+    title: "Community Kitchen - Feeding 1000 Daily",
+    description: "Daily community kitchen serving nutritious meals to homeless and daily wage workers in Hyderabad. Volunteers needed for cooking, serving, and logistics. Ingredients donated by local restaurants and grocery stores.",
+    category: "Community Service",
+    status: "ongoing",
+    verified: true,
+    address: "Old City Area, Hyderabad",
+    city: "Hyderabad",
+    state: "Telangana",
+    latitude: 17.3850,
+    longitude: 78.4867,
+    startDate: new Date("2026-06-15T11:00:00Z"),
+    endDate: new Date("2027-06-14T14:00:00Z"),
+    contactInfo: "Kitchen Manager: +91 99000 88776",
+    registrationLink: null,
+    participantCount: 450,
+  },
+  {
+    title: "Cleanliness Drive - Taj Mahal Surroundings",
+    description: "Monthly cleanliness drive around the Taj Mahal complex and surrounding residential areas in Agra. Removing litter, painting walls, planting flowers, and educating tourists about responsible tourism.",
+    category: "Community Service",
+    status: "upcoming",
+    verified: false,
+    address: "Near Taj Mahal East Gate, Agra",
+    city: "Agra",
+    state: "Uttar Pradesh",
+    latitude: 27.1751,
+    longitude: 78.0421,
+    startDate: new Date("2026-09-25T06:00:00Z"),
+    endDate: new Date("2026-09-25T12:00:00Z"),
+    contactInfo: "WhatsApp Group: +91 98765 11223",
+    registrationLink: null,
+    participantCount: 0,
+  },
+  // Awareness Campaigns
+  {
+    title: "Digital Privacy Rights Campaign",
+    description: "A pan-India awareness campaign about digital privacy rights, data protection, and the Digital Personal Data Protection Act. Workshops in 10 cities explaining citizens' rights to data privacy, consent, and digital identity protection.",
+    category: "Awareness Campaigns",
+    status: "ongoing",
+    verified: true,
+    address: "Multiple cities - see schedule",
+    city: "Multiple",
+    state: "Multiple",
+    latitude: 28.6139,
+    longitude: 77.2090,
+    startDate: new Date("2026-08-15T10:00:00Z"),
+    endDate: new Date("2026-12-15T18:00:00Z"),
+    contactInfo: "Email: privacy@civicvoice.org",
+    registrationLink: "https://civicvoice.org/digital-privacy",
+    participantCount: 312,
+  },
+  {
+    title: "Women's Safety Awareness Marathon",
+    description: "A 10km awareness marathon in Kolkata promoting women's safety, self-defense training, and emergency response apps. Proceeds go to women's safety helpline infrastructure. Free self-defense workshops at the finish line.",
+    category: "Awareness Campaigns",
+    status: "upcoming",
+    verified: true,
+    address: "Maidan, Kolkata",
+    city: "Kolkata",
+    state: "West Bengal",
+    latitude: 22.5726,
+    longitude: 88.3639,
+    startDate: new Date("2026-11-25T06:00:00Z"),
+    endDate: new Date("2026-11-25T11:00:00Z"),
+    contactInfo: "Phone: +91 98300 12345",
+    registrationLink: "https://civicvoice.org/womens-safety-marathon",
+    participantCount: 0,
+  },
+  // Public Consultations
+  {
+    title: "Smart City Master Plan - Citizen Input",
+    description: "Public consultation session for the Ahmedabad Smart City Master Plan 2030. Citizens can provide input on urban mobility, green spaces, digital infrastructure, and heritage conservation. Moderated by urban planning experts.",
+    category: "Public Consultations",
+    status: "upcoming",
+    verified: true,
+    address: "Town Hall, Ahmedabad",
+    city: "Ahmedabad",
+    state: "Gujarat",
+    latitude: 23.0225,
+    longitude: 72.5714,
+    startDate: new Date("2026-10-12T14:00:00Z"),
+    endDate: new Date("2026-10-12T18:00:00Z"),
+    contactInfo: "Email: consultations@civicvoice.org",
+    registrationLink: "https://civicvoice.org/ahmedabad-consultation",
+    participantCount: 0,
+  },
+  {
+    title: "Metro Expansion Public Hearing - Namma Metro",
+    description: "Public hearing for the proposed Phase 3 extension of Namma Metro (Bangalore). Citizens can raise concerns about route alignment, land acquisition, environmental impact, and compensation. Representatives from BMRCL will present plans.",
+    category: "Public Consultations",
+    status: "upcoming",
+    verified: true,
+    address: "BMTC Complex, Majestic, Bangalore",
+    city: "Bangalore",
+    state: "Karnataka",
+    latitude: 12.9767,
+    longitude: 77.5714,
+    startDate: new Date("2026-09-28T10:00:00Z"),
+    endDate: new Date("2026-09-28T16:00:00Z"),
+    contactInfo: "BMRCL Helpline: 080-22105555",
+    registrationLink: "https://civicvoice.org/namma-metro-hearing",
+    participantCount: 0,
+  },
+  {
+    title: "Waste Management Policy Forum",
+    description: "An open forum discussing Delhi's new waste management policy. Citizens, waste pickers, municipal workers, and policymakers will discuss segregation at source, recycling infrastructure, and composting. Part of the Right to Clean City movement.",
+    category: "Public Consultations",
+    status: "upcoming",
+    verified: false,
+    address: "India International Centre, New Delhi",
+    city: "New Delhi",
+    state: "Delhi",
+    latitude: 28.5983,
+    longitude: 77.2300,
+    startDate: new Date("2026-11-05T15:00:00Z"),
+    endDate: new Date("2026-11-05T19:00:00Z"),
+    contactInfo: "Email: forum@civicvoice.org",
+    registrationLink: null,
+    participantCount: 0,
+  },
+  // Additional initiatives to reach 30+
+  {
+    title: "Organic Farming Workshop - Organic Valley",
+    description: "Learn organic farming techniques from experienced farmers. Hands-on workshop covering composting, natural pest control, crop rotation, and soil health. Perfect for urban gardeners and aspiring farmers.",
+    category: "Environment",
+    status: "upcoming",
+    verified: false,
+    address: "Organic Valley Farm, Lonavala",
+    city: "Lonavala",
+    state: "Maharashtra",
+    latitude: 18.7535,
+    longitude: 73.4043,
+    startDate: new Date("2026-10-20T08:00:00Z"),
+    endDate: new Date("2026-10-20T16:00:00Z"),
+    contactInfo: "Email: farming@greenearth.in",
+    registrationLink: null,
+    participantCount: 0,
+  },
+  {
+    title: "Scholarship Fund Drive for Meritorious Students",
+    description: "Fundraising drive to provide scholarships for meritorious students from economically weaker sections. Each donation of Rs. 500 funds one month of coaching classes. All funds managed transparently through registered trust.",
+    category: "Education",
+    status: "ongoing",
+    verified: true,
+    address: "Online + Local collection centers",
+    city: "Multiple",
+    state: "Multiple",
+    latitude: 28.6139,
+    longitude: 77.2090,
+    startDate: new Date("2026-07-01T00:00:00Z"),
+    endDate: new Date("2026-12-31T23:59:00Z"),
+    contactInfo: "Email: scholarships@teachforindia.org",
+    registrationLink: "https://teachforindia.org/scholarship-fund",
+    participantCount: 890,
+  },
+  {
+    title: "Diabetes Awareness Camp - Tier 2 Cities",
+    description: "Free diabetes screening and awareness program targeting tier-2 cities across North India. Medical volunteers provide HbA1c tests, dietary counseling, and lifestyle modification guidance.",
+    category: "Healthcare",
+    status: "upcoming",
+    verified: true,
+    address: "Community Hall, Lucknow",
+    city: "Lucknow",
+    state: "Uttar Pradesh",
+    latitude: 26.8467,
+    longitude: 80.9462,
+    startDate: new Date("2026-11-14T08:00:00Z"),
+    endDate: new Date("2026-11-14T16:00:00Z"),
+    contactInfo: "Phone: +91 88000 12345",
+    registrationLink: null,
+    participantCount: 0,
+  },
+  {
+    title: "Stray Cat Spay/Neuter Program - Delhi NCR",
+    description: "Comprehensive ABC program for stray cats across Delhi NCR. Partnering with 5 veterinary clinics for sterilization. Volunteers help with TNR (Trap-Neuter-Return) operations and post-operative care monitoring.",
+    category: "Animal Welfare",
+    status: "ongoing",
+    verified: false,
+    address: "Multiple locations, Delhi NCR",
+    city: "New Delhi",
+    state: "Delhi",
+    latitude: 28.6139,
+    longitude: 77.2090,
+    startDate: new Date("2026-08-01T07:00:00Z"),
+    endDate: new Date("2027-02-28T19:00:00Z"),
+    contactInfo: "Dr. Sharma: +91 98765 99887",
+    registrationLink: "https://animalsos.in/cat-abc",
+    participantCount: 45,
+  },
+  {
+    title: "Cyclone Relief Material Collection - Odisha",
+    description: "Collecting relief materials for cyclone-affected families in coastal Odisha. Items needed: dry food, medicines, clothing, water purifiers, and solar lights. Drop-off points across Bhubaneswar and Cuttack.",
+    category: "Disaster Relief",
+    status: "ongoing",
+    verified: true,
+    address: "Collection Center, Bhubaneswar",
+    city: "Bhubaneswar",
+    state: "Odisha",
+    latitude: 20.2961,
+    longitude: 85.8245,
+    startDate: new Date("2026-08-05T08:00:00Z"),
+    endDate: new Date("2026-09-30T20:00:00Z"),
+    contactInfo: "Coordinator: +91 70000 11223",
+    registrationLink: null,
+    participantCount: 156,
+  },
+  {
+    title: "Homeless Shelter Renovation - Pune",
+    description: "Renovating and upgrading a government-run homeless shelter in Pune. Work includes painting, electrical repairs, plumbing fixes, and setting up a basic kitchen. Weekend volunteer opportunity.",
+    category: "Community Service",
+    status: "upcoming",
+    verified: false,
+    address: "Nirmal Shelter, Hadapsar, Pune",
+    city: "Pune",
+    state: "Maharashtra",
+    latitude: 18.5089,
+    longitude: 73.9260,
+    startDate: new Date("2026-10-18T08:00:00Z"),
+    endDate: new Date("2026-10-19T17:00:00Z"),
+    contactInfo: "WhatsApp: +91 99887 76600",
+    registrationLink: null,
+    participantCount: 0,
+  },
+  {
+    title: "Climate Change Policy Workshop for Students",
+    description: "Interactive workshop for college students on understanding climate change policies, India's NDC commitments, and how youth can influence environmental governance. Includes mock parliament sessions.",
+    category: "Awareness Campaigns",
+    status: "upcoming",
+    verified: true,
+    address: "University of Delhi, North Campus",
+    city: "New Delhi",
+    state: "Delhi",
+    latitude: 28.6861,
+    longitude: 77.2070,
+    startDate: new Date("2026-11-08T10:00:00Z"),
+    endDate: new Date("2026-11-08T17:00:00Z"),
+    contactInfo: "Email: students@civicvoice.org",
+    registrationLink: "https://civicvoice.org/climate-workshop",
+    participantCount: 0,
+  },
+  {
+    title: "Bus Rapid Transit Route Planning Consultation",
+    description: "Citizen consultation for proposed BRT corridor in Surat. Public input sought on route alignment, station locations, impact on local businesses, and accessibility features for differently-abled passengers.",
+    category: "Public Consultations",
+    status: "upcoming",
+    verified: true,
+    address: "Surat Municipal Corporation Office",
+    city: "Surat",
+    state: "Gujarat",
+    latitude: 21.1702,
+    longitude: 72.8311,
+    startDate: new Date("2026-12-01T14:00:00Z"),
+    endDate: new Date("2026-12-01T19:00:00Z"),
+    contactInfo: "Email: consultations@suratbust.in",
+    registrationLink: "https://civicvoice.org/surat-brt",
+    participantCount: 0,
+  },
+  {
+    title: "River Yamuna Restoration Volunteer Drive",
+    description: "Large-scale volunteer drive for Yamuna riverfront cleanup in Delhi. Removing industrial waste, plastic pollution, and invasive vegetation. Water quality testing will be conducted by environmental science students.",
+    category: "Environment",
+    status: "upcoming",
+    verified: true,
+    address: "Yamuna Ghat, Ring Road, New Delhi",
+    city: "New Delhi",
+    state: "Delhi",
+    latitude: 28.6329,
+    longitude: 77.2430,
+    startDate: new Date("2026-09-12T06:00:00Z"),
+    endDate: new Date("2026-09-12T14:00:00Z"),
+    contactInfo: "Email: yamuna@greenearth.in",
+    registrationLink: "https://greenearth.in/yamuna-cleanup",
+    participantCount: 0,
+  },
+  {
+    title: "Blood Donation Drive - Engineering Colleges",
+    description: "Inter-college blood donation drive across 15 engineering colleges in Chennai. Each college competes for the highest donation count. Medical teams from AIIMS Chennai will manage the drives.",
+    category: "Blood Donation",
+    status: "upcoming",
+    verified: true,
+    address: "Anna University Campus, Chennai",
+    city: "Chennai",
+    state: "Tamil Nadu",
+    latitude: 13.0118,
+    longitude: 80.2341,
+    startDate: new Date("2026-10-25T09:00:00Z"),
+    endDate: new Date("2026-10-25T16:00:00Z"),
+    contactInfo: "Phone: +91 94000 55667",
+    registrationLink: "https://bloodbridge.org/college-drive",
+    participantCount: 0,
+  },
+];
+
+const postsData: Omit<InsertPost, 'userId' | 'initiativeId'>[] = [
+  {
+    content: "Amazing turnout at the Green Mumbai Drive yesterday! 🌱 Over 500 volunteers planted 3,000 saplings. The energy was incredible. Shoutout to all the first-time volunteers who showed up on a Sunday morning!",
+    likeCount: 142,
+    commentCount: 23,
+  },
+  {
+    content: "Just completed my 10th blood donation through BloodBridge. Feeling grateful that something so simple can save lives. If you haven't donated yet, please find a camp near you on JanConnect!",
+    likeCount: 89,
+    commentCount: 15,
+  },
+  {
+    content: "The digital literacy workshop for seniors was heartwarming. Today, 80-year-old Mrs. Sharma sent her first WhatsApp message to her grandson. These small moments make volunteering so rewarding.",
+    likeCount: 234,
+    commentCount: 31,
+  },
+  {
+    content: "Bellandur Lake cleanup was tough but necessary. We collected 2 tonnes of waste in 4 hours. The foam on the lake surface is still alarming - we need systemic change, not just cleanup drives. #CleanLakes",
+    likeCount: 178,
+    commentCount: 42,
+  },
+  {
+    content: "Started volunteering at the community kitchen in Hyderabad last month. Cooking for 1000 people daily has taught me more about community and empathy than any classroom ever could.",
+    likeCount: 312,
+    commentCount: 56,
+  },
+];
+
+export async function seedDatabase() {
+  const db = await getDb();
+  if (!db) {
+    console.error("[Seed] Database not available");
+    return;
+  }
+
+  try {
+    // Insert organizations
+    console.log("[Seed] Inserting organizations...");
+    await db.insert(organizations).values(orgs).onConflictDoNothing();
+
+    // Get organization IDs
+    const allOrgs = await db.select().from(organizations).limit(10);
+    const orgIdMap: Record<string, number> = {};
+    allOrgs.forEach((org) => {
+      if (org.name) orgIdMap[org.name] = org.id;
+    });
+
+    // Map initiatives to organizations
+    const orgMapping: Record<string, string> = {
+      "Green Earth India": "Green Earth India",
+      "Teach For India Foundation": "Teach For India Foundation",
+      "BloodBridge Volunteers": "BloodBridge Volunteers",
+      "Animal SOS Mumbai": "Animal SOS Mumbai",
+      "Relief Force India": "Relief Force India",
+      "Civic Voice Coalition": "Civic Voice Coalition",
+    };
+
+    // Insert initiatives
+    console.log("[Seed] Inserting initiatives...");
+    const initOrgMap: Record<string, number | null> = {
+      "Green Mumbai Drive 2026": orgIdMap["Green Earth India"] || null,
+      "Plastic-Free Pune Initiative": orgIdMap["Green Earth India"] || null,
+      "Lake Cleanup - Bellandur Lake": orgIdMap["Green Earth India"] || null,
+      "Digital Literacy Workshop for Senior Citizens": orgIdMap["Teach For India Foundation"] || null,
+      "Rural School Library Project": orgIdMap["Teach For India Foundation"] || null,
+      "Free Health Checkup Camp - Slum Areas": null,
+      "Mental Health Awareness Walk": null,
+      "Blood Donation Mega Camp - Bangalore": orgIdMap["BloodBridge Volunteers"] || null,
+      "Emergency Blood Drive - Kerala Floods": orgIdMap["BloodBridge Volunteers"] || null,
+      "Street Dog Sterilization Drive": orgIdMap["Animal SOS Mumbai"] || null,
+      "Wildlife Rescue Training Workshop": orgIdMap["Animal SOS Mumbai"] || null,
+      "Flood Relief Supply Chain - Assam": orgIdMap["Relief Force India"] || null,
+      "Earthquake Preparedness Drill - Uttarakhand": orgIdMap["Relief Force India"] || null,
+      "Community Kitchen - Feeding 1000 Daily": null,
+      "Cleanliness Drive - Taj Mahal Surroundings": null,
+      "Digital Privacy Rights Campaign": orgIdMap["Civic Voice Coalition"] || null,
+      "Women's Safety Awareness Marathon": orgIdMap["Civic Voice Coalition"] || null,
+      "Smart City Master Plan - Citizen Input": orgIdMap["Civic Voice Coalition"] || null,
+      "Metro Expansion Public Hearing - Namma Metro": orgIdMap["Civic Voice Coalition"] || null,
+      "Waste Management Policy Forum": orgIdMap["Civic Voice Coalition"] || null,
+    };
+
+    const insertInitiatives: InsertInitiative[] = initiativesData.map((init) => ({
+      ...init,
+      organizationId: initOrgMap[init.title] as number | undefined,
+      imageUrl: null,
+    }));
+
+    await db.insert(initiatives).values(insertInitiatives).onConflictDoNothing();
+
+    // Seed sample users for community posts
+    console.log("[Seed] Inserting sample users...");
+    const sampleUsers = [
+      { openId: "seed_user_1", name: "Priya Sharma", email: "priya@example.com", loginMethod: "manus", role: "user" as const },
+      { openId: "seed_user_2", name: "Rahul Verma", email: "rahul@example.com", loginMethod: "manus", role: "user" as const },
+      { openId: "seed_user_3", name: "Ananya Patel", email: "ananya@example.com", loginMethod: "manus", role: "user" as const },
+      { openId: "seed_user_4", name: "Vikram Singh", email: "vikram@example.com", loginMethod: "manus", role: "user" as const },
+      { openId: "seed_user_5", name: "Meera Nair", email: "meera@example.com", loginMethod: "manus", role: "user" as const },
+    ];
+    await db.insert(users).values(sampleUsers).onConflictDoNothing();
+    const seededUsers = await db.select().from(users).limit(10);
+    const userMap = new Map<string, number>();
+    seededUsers.forEach((u) => {
+      if (u.openId) userMap.set(u.openId, u.id);
+    });
+
+    // Seed user profiles
+    const existingProfiles = await db.select({ id: userProfiles.id }).from(userProfiles).limit(1);
+    if (existingProfiles.length === 0) {
+      for (const u of seededUsers) {
+        await db.insert(userProfiles).values({
+          userId: u.id,
+          bio: `Passionate civic volunteer from ${u.name || 'India'}.`,
+          location: "India",
+          contributionScore: Math.floor(Math.random() * 50) + 10,
+        });
+      }
+    }
+
+    // Insert sample posts
+    console.log("[Seed] Inserting sample posts...");
+    const existingPosts = await db.select({ id: posts.id }).from(posts).limit(1);
+    if (existingPosts.length === 0) {
+      const userIds = Array.from(userMap.values());
+      const samplePosts: InsertPost[] = postsData.map((post, i) => ({
+        ...post,
+        userId: userIds[i % userIds.length],
+        mediaUrl: null,
+        initiativeId: null,
+      }));
+      await db.insert(posts).values(samplePosts).onConflictDoNothing();
+    }
+
+    console.log("[Seed] Database seeded successfully!");
+  } catch (error) {
+    console.error("[Seed] Error seeding database:", error);
+  }
+}
+
+// Run if called directly
+const isDirectRun = import.meta.url === `file://${process.argv[1]}`;
+if (isDirectRun || process.argv[1]?.endsWith('seed.ts')) {
+  seedDatabase().then(() => {
+    console.log('[Seed] Complete!');
+    process.exit(0);
+  }).catch((err) => {
+    console.error('[Seed] Failed:', err);
+    process.exit(1);
+  });
+}
