@@ -109,6 +109,15 @@ temp/
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 
+# Local project documentation and deployment files
+API_DOCUMENTATION.md
+DEPLOYMENT.md
+POSTGRESQL_SETUP.md
+docker-compose.yml
+Dockerfile
+template.json
+todo.md
+
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
 .project-config.json

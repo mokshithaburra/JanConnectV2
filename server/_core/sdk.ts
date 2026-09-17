@@ -24,17 +24,15 @@ export type SessionPayload = {
   name: string;
 };
 
-const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
-const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
-    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
-    if (!ENV.oAuthServerUrl) {
-      console.error(
-        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
-      );
+    console.log("[OAuth] Using Google OAuth");
+    if (!ENV.googleClientId || !ENV.googleClientSecret) {
+      console.error("[OAuth] ERROR: GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not configured!");
     }
   }
 
@@ -42,36 +40,40 @@ class OAuthService {
     return decodeOAuthState(state).redirectUri;
   }
 
-  async getTokenByCode(
-    code: string,
-    state: string
-  ): Promise<ExchangeTokenResponse> {
-    const payload: ExchangeTokenRequest = {
-      clientId: ENV.appId,
-      grantType: "authorization_code",
-      code,
-      redirectUri: this.decodeState(state),
-    };
+  async getTokenByCode(code: string, state: string): Promise<ExchangeTokenResponse> {
+    const redirectUri = this.decodeState(state);
 
-    const { data } = await this.client.post<ExchangeTokenResponse>(
-      EXCHANGE_TOKEN_PATH,
-      payload
-    );
-
-    return data;
-  }
-
-  async getUserInfoByToken(
-    token: ExchangeTokenResponse
-  ): Promise<GetUserInfoResponse> {
-    const { data } = await this.client.post<GetUserInfoResponse>(
-      GET_USER_INFO_PATH,
+    const { data } = await axios.post(
+      GOOGLE_TOKEN_URL,
+      new URLSearchParams({
+        client_id: ENV.googleClientId,
+        client_secret: ENV.googleClientSecret,
+        code,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
       {
-        accessToken: token.accessToken,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        timeout: AXIOS_TIMEOUT_MS,
       }
     );
 
-    return data;
+    return { accessToken: data.access_token } as ExchangeTokenResponse;
+  }
+
+  async getUserInfoByToken(token: ExchangeTokenResponse): Promise<GetUserInfoResponse> {
+    const { data } = await axios.get(GOOGLE_USERINFO_URL, {
+      headers: { Authorization: `Bearer ${token.accessToken}` },
+      timeout: AXIOS_TIMEOUT_MS,
+    });
+
+    return {
+      openId: data.sub,
+      name: data.name,
+      email: data.email,
+      platform: "google",
+      loginMethod: "google",
+    } as GetUserInfoResponse;
   }
 }
 
@@ -290,19 +292,17 @@ class SDKServer {
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically
-    if (!user) {
+        if (!user) {
       try {
-        const userInfo = await this.getUserInfoWithJwt(sessionToken ?? "");
         await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+          openId: session.openId,
+          name: session.name || null,
+          loginMethod: "google",
           lastSignedIn: signedInAt,
         });
-        user = await db.getUserByOpenId(userInfo.openId);
+        user = await db.getUserByOpenId(session.openId);
       } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
+        console.error("[Auth] Failed to sync user from session:", error);
         throw ForbiddenError("Failed to sync user info");
       }
     }

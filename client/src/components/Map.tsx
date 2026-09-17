@@ -89,8 +89,7 @@ declare global {
 // The Forge maps proxy requires an `Origin` header that browsers do not send
 // on same-origin script tags, so the script is fetched through our own
 // same-origin Express proxy at /api/maps-proxy (see server/_core/mapsProxy.ts).
-const FORGE_API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
-const MAPS_PROXY_ENDPOINT = `/api/maps-proxy`;
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 let mapScriptPromise: Promise<void> | null = null;
 
@@ -100,7 +99,7 @@ function loadMapScript() {
 
   mapScriptPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_ENDPOINT}/maps/api/js?key=${FORGE_API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry,marker/clustering`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=weekly&libraries=marker,places,geometry`;
     script.async = true;
     script.onload = () => {
       resolve();
