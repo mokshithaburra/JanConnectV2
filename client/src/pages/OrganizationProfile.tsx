@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Building2, Mail, Phone, Globe, Shield, MapPin, Calendar,
-  Users, ArrowLeft, ExternalLink, Loader2,
+  ArrowLeft, ExternalLink,
 } from "lucide-react";
 
 export default function OrganizationProfile() {

@@ -5,7 +5,6 @@ import { getDb } from "../db";
 import { userProfiles, users, initiatives, bookmarks, posts } from "../../drizzle/schema";
 
 export const profilesRouter = router({
-  // Get user profile
   getByUserId: publicProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ input }) => {
@@ -44,7 +43,6 @@ export const profilesRouter = router({
       return { ...userRows[0], ...profile };
     }),
 
-  // Get current user's profile
   me: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return null;
@@ -68,7 +66,6 @@ export const profilesRouter = router({
     };
   }),
 
-  // Activity counts for the profile gamification surface
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return { postCount: 0, initiativeCount: 0 };
@@ -88,7 +85,6 @@ export const profilesRouter = router({
     };
   }),
 
-  // Update profile
   update: protectedProcedure
     .input(z.object({
       bio: z.string().max(500).optional(),
@@ -99,7 +95,6 @@ export const profilesRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
 
-      // Check if profile exists
       const existing = await db.select()
         .from(userProfiles)
         .where(eq(userProfiles.userId, ctx.user.id))
@@ -125,7 +120,6 @@ export const profilesRouter = router({
       return { success: true };
     }),
 
-  // Get user's participation history
   getParticipation: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];

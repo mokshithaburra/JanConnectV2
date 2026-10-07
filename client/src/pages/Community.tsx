@@ -7,13 +7,12 @@ import { startLogin } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Heart, MessageCircle, Send, Image, Loader2, MoreHorizontal,
-  Flag, Share2, Camera, X,
+  Flag, Share2, X,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -65,12 +64,11 @@ export default function Community() {
     { enabled: !!activePostId && isAuthenticated }
   );
 
-  // Handle file selection for S3 upload
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File size must be under 10MB");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be under 5 MB");
       return;
     }
     setMediaFile(file);
@@ -81,14 +79,12 @@ export default function Community() {
     reader.readAsDataURL(file);
   };
 
-  // Create post with optional media (S3 upload)
   const handleCreatePost = async () => {
     if (!newPost.trim()) return;
 
     if (mediaFile) {
-      // Upload to S3 first, then create post with mediaUrl
       try {
-        // Read file as base64 and send as JSON
+        // The upload endpoint takes base64 JSON, not multipart.
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve((reader.result as string).split(",")[1]);
@@ -108,12 +104,11 @@ export default function Community() {
           const { url } = await uploadResp.json();
           createPost.mutate({ content: newPost, mediaUrl: url, initiativeId });
         } else {
-          // Fallback: create post without media if upload fails
           createPost.mutate({ content: newPost, initiativeId });
           toast.warning("Image upload failed, post shared without image");
         }
       } catch {
-        // Fallback: create post without media
+        // Still publish the text if the upload request itself fails.
         createPost.mutate({ content: newPost, initiativeId });
       }
     } else {
@@ -190,7 +185,7 @@ export default function Community() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,video/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
                   className="hidden"
                   onChange={handleFileSelect}
                   aria-label="Upload media"
