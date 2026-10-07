@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  Shield, AlertTriangle, CheckCircle, XCircle, Eye,
-  BarChart3, Users, FileText, Building2, Loader2,
+  Shield, AlertTriangle, CheckCircle, XCircle,
+  Users, FileText, Building2,
   ShieldCheck, Search, MapPin, Calendar,
 } from "lucide-react";
 

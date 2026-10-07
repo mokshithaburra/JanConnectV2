@@ -10,9 +10,7 @@ import {
   Compass,
   User,
   Menu,
-  X,
   LogOut,
-  Settings,
   Shield,
 } from "lucide-react";
 import {
@@ -38,8 +36,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [location] = useLocation();
   const { user, loading, isAuthenticated, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const activeTab = tabs.find((t) => t.id === location) || tabs[0];
 
   return (
     <div className="min-h-screen flex flex-col bg-background">

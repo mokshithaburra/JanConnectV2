@@ -149,7 +149,7 @@ function CommunityActivity() {
 }
 
 export default function Home() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { loading, isAuthenticated } = useAuth();
   const { data: initiativesData, isLoading } = trpc.initiatives.list.useQuery({
     limit: 6,
     sortBy: "newest",

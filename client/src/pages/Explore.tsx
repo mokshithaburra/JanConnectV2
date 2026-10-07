@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLocation, useRoute } from "wouter";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   MapPin, List, Search, Filter, Calendar, Users, ChevronRight,
   TreePine, GraduationCap, Heart, Droplets, PawPrint, AlertTriangle,
-  HandHeart, Megaphone, MessageCircle, Map as MapGlobe, X, ExternalLink,
-  Navigation, Loader2, Crosshair, ShieldCheck,
+  HandHeart, Megaphone, MessageCircle, Map as MapGlobe, X,
+  Loader2, Crosshair, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MapView } from "@/components/Map";
@@ -57,9 +55,7 @@ const categoryDotColors: Record<string, string> = {
 };
 
 export default function Explore() {
-  const [, params] = useRoute<{ id?: string }>("/explore/:id?");
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
 
   // View state
   const [viewMode, setViewMode] = useState<"map" | "list">("list");
@@ -84,9 +80,7 @@ export default function Explore() {
   const [mapReady, setMapReady] = useState(false);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<any[]>([]);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
 
-  // Build search params
   const searchParams = {
     search: searchQuery || undefined,
     category: (category !== "all" ? category : undefined) as any,
@@ -103,13 +97,11 @@ export default function Explore() {
 
   const { data, isLoading } = trpc.initiatives.list.useQuery(searchParams);
 
-  // Nearby initiatives query
   const nearbyData = trpc.initiatives.getNearby.useQuery(
     { latitude: userLocation?.lat || 0, longitude: userLocation?.lng || 0, radiusKm: Number(radiusKm), limit: 20 },
     { enabled: !!userLocation }
   );
 
-  // Request user location for nearby discovery
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
@@ -124,7 +116,7 @@ export default function Explore() {
         setIsLocating(false);
         toast.success("Location detected! Showing nearby initiatives.");
       },
-      (err) => {
+      () => {
         setLocationError("Unable to get your location. Please enable location access.");
         setIsLocating(false);
         toast.error("Location access denied");
@@ -133,7 +125,6 @@ export default function Explore() {
     );
   }, []);
 
-  // Map markers
   const markers = (data?.initiatives || [])
     .filter((i) => i.latitude != null && i.longitude != null)
     .map((i) => ({
@@ -145,10 +136,8 @@ export default function Explore() {
       status: i.status,
     }));
 
-  // Marker clustering
   const clustererRef = useRef<any>(null);
 
-  // Add markers to map with clustering
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -177,7 +166,6 @@ export default function Explore() {
       return marker;
     });
 
-    // Use Google Maps Clustering if available
     if (typeof google !== "undefined" && (google as any).maps?.marker?.Clusterer) {
       clustererRef.current = new (google as any).maps.marker.Clusterer({
         map,
@@ -208,7 +196,6 @@ export default function Explore() {
       });
       markersRef.current = mapMarkers;
     } else {
-      // Fallback: no clustering, just add markers directly
       mapMarkers.forEach((m) => { m.map = map; });
       markersRef.current = mapMarkers;
     }
@@ -627,5 +614,3 @@ export default function Explore() {
     </div>
   );
 }
-
-// Removed: Using shared MapView component instead

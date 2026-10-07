@@ -29,7 +29,8 @@ export function registerOAuthRoutes(app: Express) {
       res.status(403).json({ error: "invalid oauth state" });
       return;
     }
-    res.clearCookie(OAUTH_STATE_COOKIE, {path: "/", secure: isSecureRequest(req), sameSite: isSecureRequest(req) ? "none" : "lax",});
+    const secure = isSecureRequest(req);
+    res.clearCookie(OAUTH_STATE_COOKIE, { path: "/", secure, sameSite: secure ? "none" : "lax" });
 
     try {
       const tokenResponse = await sdk.exchangeCodeForToken(code, state);

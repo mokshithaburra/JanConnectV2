@@ -1,6 +1,5 @@
 import { getDb } from "./db";
-import { initiatives, organizations, posts, comments, userProfiles, users, type Initiative, type InsertInitiative, type InsertOrganization, type InsertPost } from "../drizzle/schema";
-import { ENV } from "./_core/env";
+import { initiatives, organizations, posts, userProfiles, users, type InsertInitiative, type InsertOrganization, type InsertPost } from "../drizzle/schema";
 
 /**
  * Seed data for JanConnect - Realistic Indian civic initiatives
@@ -576,7 +575,7 @@ const initiativesData: InsertInitiative[] = [
   },
 ];
 
-const postsData: Omit<InsertPost, 'userId' | 'initiativeId'>[] = [
+const postsData: Omit<InsertPost, "userId" | "initiativeId">[] = [
   {
     content: "Amazing turnout at the Green Mumbai Drive yesterday! 🌱 Over 500 volunteers planted 3,000 saplings. The energy was incredible. Shoutout to all the first-time volunteers who showed up on a Sunday morning!",
     likeCount: 142,
@@ -612,28 +611,15 @@ export async function seedDatabase() {
   }
 
   try {
-    // Insert organizations
     console.log("[Seed] Inserting organizations...");
     await db.insert(organizations).values(orgs).onConflictDoNothing();
 
-    // Get organization IDs
     const allOrgs = await db.select().from(organizations).limit(10);
     const orgIdMap: Record<string, number> = {};
     allOrgs.forEach((org) => {
       if (org.name) orgIdMap[org.name] = org.id;
     });
 
-    // Map initiatives to organizations
-    const orgMapping: Record<string, string> = {
-      "Green Earth India": "Green Earth India",
-      "Teach For India Foundation": "Teach For India Foundation",
-      "BloodBridge Volunteers": "BloodBridge Volunteers",
-      "Animal SOS Mumbai": "Animal SOS Mumbai",
-      "Relief Force India": "Relief Force India",
-      "Civic Voice Coalition": "Civic Voice Coalition",
-    };
-
-    // Insert initiatives
     console.log("[Seed] Inserting initiatives...");
     const initOrgMap: Record<string, number | null> = {
       "Green Mumbai Drive 2026": orgIdMap["Green Earth India"] || null,
@@ -666,7 +652,6 @@ export async function seedDatabase() {
 
     await db.insert(initiatives).values(insertInitiatives).onConflictDoNothing();
 
-    // Seed sample users for community posts
     console.log("[Seed] Inserting sample users...");
     const sampleUsers = [
       { openId: "seed_user_1", name: "Priya Sharma", email: "priya@example.com", loginMethod: "manus", role: "user" as const },
@@ -682,20 +667,18 @@ export async function seedDatabase() {
       if (u.openId) userMap.set(u.openId, u.id);
     });
 
-    // Seed user profiles
     const existingProfiles = await db.select({ id: userProfiles.id }).from(userProfiles).limit(1);
     if (existingProfiles.length === 0) {
       for (const u of seededUsers) {
         await db.insert(userProfiles).values({
           userId: u.id,
-          bio: `Passionate civic volunteer from ${u.name || 'India'}.`,
+          bio: `Passionate civic volunteer from ${u.name || "India"}.`,
           location: "India",
           contributionScore: Math.floor(Math.random() * 50) + 10,
         });
       }
     }
 
-    // Insert sample posts
     console.log("[Seed] Inserting sample posts...");
     const existingPosts = await db.select({ id: posts.id }).from(posts).limit(1);
     if (existingPosts.length === 0) {
@@ -715,14 +698,13 @@ export async function seedDatabase() {
   }
 }
 
-// Run if called directly
 const isDirectRun = import.meta.url === `file://${process.argv[1]}`;
-if (isDirectRun || process.argv[1]?.endsWith('seed.ts')) {
+if (isDirectRun || process.argv[1]?.endsWith("seed.ts")) {
   seedDatabase().then(() => {
-    console.log('[Seed] Complete!');
+    console.log("[Seed] Complete!");
     process.exit(0);
   }).catch((err) => {
-    console.error('[Seed] Failed:', err);
+    console.error("[Seed] Failed:", err);
     process.exit(1);
   });
 }

@@ -169,5 +169,3 @@ export function getCivicBadges({ score, bookmarks, initiatives, posts }: BadgePr
 export function getNextBadge(badges: CivicBadge[]): CivicBadge | null {
   return badges.find((badge) => !badge.unlocked) || null;
 }
-
-export const civicVisuals = VISUALS;

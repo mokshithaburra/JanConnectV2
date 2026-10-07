@@ -46,7 +46,6 @@ async function startServer() {
       const files = (req as any).files as { file: any[] } | undefined;
       const file = files?.file?.[0] || (req as any).file;
       if (!file) {
-        // Try raw body parsing
         const body = (req as any).body;
         if (body?.file) {
           const buffer = Buffer.from(body.file, "base64");
@@ -57,7 +56,6 @@ async function startServer() {
         }
         return res.status(400).json({ error: "No file provided" });
       }
-      // Multer file
       const f = Array.isArray(file) ? file[0] : file;
       const key = `community-posts/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${f.mimetype.split("/").pop()}`;
       const { url } = await storagePut(key, Buffer.from(f.buffer), f.mimetype);
@@ -67,7 +65,6 @@ async function startServer() {
       res.status(500).json({ error: "Upload failed", detail: error.message });
     }
   });
-  // tRPC API
   app.use(
     "/api/trpc",
     createExpressMiddleware({
@@ -75,7 +72,6 @@ async function startServer() {
       createContext,
     })
   );
-  // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {

@@ -66,7 +66,7 @@ for (let i = 0; i < CITY_POINTS.length; i++) {
   }
 }
 
-export function AnimatedMapBackground() {
+function AnimatedMapBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
   const scrollYRef = useRef(0);

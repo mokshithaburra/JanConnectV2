@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { eq, and, or, sql, desc, asc, gt, gte, lt, lte, between } from "drizzle-orm";
+import { eq, and, or, sql, desc, asc, gte, lt } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { initiatives, organizations, bookmarks, userProfiles, users } from "../../drizzle/schema";
+import { initiatives, organizations, bookmarks, userProfiles } from "../../drizzle/schema";
 
 const CATEGORIES = [
   "Environment", "Education", "Healthcare", "Blood Donation",
@@ -12,8 +12,16 @@ const CATEGORIES = [
 
 const STATUSES = ["upcoming", "ongoing", "completed", "cancelled"] as const;
 
+// Haversine distance in km from (lat, lng) to each initiative.
+const distanceKm = (lat: number, lng: number) => sql<number>`(
+  6371 * acos(
+    cos(radians(${lat})) * cos(radians(${initiatives.latitude})) *
+    cos(radians(${initiatives.longitude}) - radians(${lng})) +
+    sin(radians(${lat})) * sin(radians(${initiatives.latitude}))
+  )
+)`;
+
 export const initiativesRouter = router({
-  // List initiatives with filters
   list: publicProcedure
     .input(z.object({
       category: z.enum(CATEGORIES).optional(),
@@ -24,11 +32,9 @@ export const initiativesRouter = router({
       sortBy: z.enum(["newest", "oldest", "participants", "name"]).default("newest"),
       limit: z.number().min(1).max(100).default(20),
       offset: z.number().min(0).default(0),
-      // Geo filter
       latitude: z.number().optional(),
       longitude: z.number().optional(),
       radiusKm: z.number().min(1).max(1000).optional(),
-      // Date filter: "today", "this_week", "this_month", "future", "all"
       dateFilter: z.enum(["today", "this_week", "this_month", "future", "all"]).optional(),
     }))
     .query(async ({ input }) => {
@@ -50,7 +56,6 @@ export const initiativesRouter = router({
         );
       }
 
-      // Date filter
       if (input.dateFilter && input.dateFilter !== "all" && input.dateFilter !== "future") {
         const now = new Date();
         let fromDate: Date | undefined;
@@ -88,19 +93,8 @@ export const initiativesRouter = router({
         conditions.push(gte(initiatives.startDate, new Date()));
       }
 
-      // Geo filter
       if (input.latitude && input.longitude && input.radiusKm) {
-        const lat = input.latitude;
-        const lng = input.longitude;
-        const r = input.radiusKm;
-        // Haversine approximation
-        conditions.push(sql`(
-          6371 * acos(
-            cos(radians(${lat})) * cos(radians(${initiatives.latitude})) *
-            cos(radians(${initiatives.longitude}) - radians(${lng})) +
-            sin(radians(${lat})) * sin(radians(${initiatives.latitude}))
-          ) <= ${r}
-        )`);
+        conditions.push(sql`${distanceKm(input.latitude, input.longitude)} <= ${input.radiusKm}`);
       }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -154,7 +148,6 @@ export const initiativesRouter = router({
       };
     }),
 
-  // Get single initiative with full details
   getById: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
@@ -200,7 +193,6 @@ export const initiativesRouter = router({
       return rows[0] || null;
     }),
 
-  // Get categories with counts
   getCategories: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) return [];
@@ -212,10 +204,9 @@ export const initiativesRouter = router({
       .from(initiatives)
       .groupBy(initiatives.category);
 
-      return rows.map(row => ({ ...row, count: Number(row.count) }));
-    }),
+    return rows.map(row => ({ ...row, count: Number(row.count) }));
+  }),
 
-  // Get nearby initiatives
   getNearby: publicProcedure
     .input(z.object({
       latitude: z.number(),
@@ -227,9 +218,7 @@ export const initiativesRouter = router({
       const db = await getDb();
       if (!db) return [];
 
-      const lat = input.latitude;
-      const lng = input.longitude;
-      const r = input.radiusKm;
+      const distance = distanceKm(input.latitude, input.longitude);
 
       const rows = await db.select({
         id: initiatives.id,
@@ -242,30 +231,17 @@ export const initiativesRouter = router({
         status: initiatives.status,
         verified: initiatives.verified,
         organizationName: organizations.name,
-        distance: sql<number>`(
-          6371 * acos(
-            cos(radians(${lat})) * cos(radians(${initiatives.latitude})) *
-            cos(radians(${initiatives.longitude}) - radians(${lng})) +
-            sin(radians(${lat})) * sin(radians(${initiatives.latitude}))
-          )
-        )`.as("distance"),
+        distance: distance.as("distance"),
       })
         .from(initiatives)
         .leftJoin(organizations, eq(initiatives.organizationId, organizations.id))
-        .where(sql`(
-          6371 * acos(
-            cos(radians(${lat})) * cos(radians(${initiatives.latitude})) *
-            cos(radians(${initiatives.longitude}) - radians(${lng})) +
-            sin(radians(${lat})) * sin(radians(${initiatives.latitude}))
-          ) <= ${r}
-        )`)
+        .where(sql`${distance} <= ${input.radiusKm}`)
         .orderBy(sql`distance`)
         .limit(input.limit);
 
       return rows;
     }),
 
-  // Get related initiatives
   getRelated: publicProcedure
     .input(z.object({ id: z.number(), limit: z.number().default(4) }))
     .query(async ({ input }) => {
@@ -295,7 +271,6 @@ export const initiativesRouter = router({
       return rows;
     }),
 
-  // Create initiative (protected)
   create: protectedProcedure
     .input(z.object({
       title: z.string().min(5).max(500),
@@ -325,7 +300,6 @@ export const initiativesRouter = router({
         createdBy: ctx.user.id,
       });
 
-      // Update user contribution score
       try {
         await db.update(userProfiles)
           .set({ contributionScore: sql`${userProfiles.contributionScore} + 10` })
@@ -337,7 +311,6 @@ export const initiativesRouter = router({
       return { success: true };
     }),
 
-  // Update initiative (admin only)
   update: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -380,7 +353,6 @@ export const initiativesRouter = router({
       return { success: true };
     }),
 
-  // Bookmark toggle
   toggleBookmark: protectedProcedure
     .input(z.object({ initiativeId: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -416,7 +388,6 @@ export const initiativesRouter = router({
       }
     }),
 
-  // Check if user has bookmarked
   getBookmarkStatus: protectedProcedure
     .input(z.object({ initiativeId: z.number() }))
     .query(async ({ ctx, input }) => {
@@ -434,7 +405,6 @@ export const initiativesRouter = router({
       return { bookmarked: existing.length > 0 };
     }),
 
-  // Get user's bookmarks
   getUserBookmarks: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return [];
