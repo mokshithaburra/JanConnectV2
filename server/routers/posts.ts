@@ -1,11 +1,10 @@
 import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { router, publicProcedure, protectedProcedure, adminProcedure } from "../_core/trpc";
+import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { posts, comments, postLikes, reports, users, initiatives, userProfiles } from "../../drizzle/schema";
 
 export const postsRouter = router({
-  // List posts
   list: publicProcedure
     .input(z.object({
       limit: z.number().min(1).max(50).default(20),
@@ -32,10 +31,11 @@ export const postsRouter = router({
         .limit(input.limit)
         .offset(input.offset);
 
-      return { posts: rows, total: rows.length };
+      const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(posts);
+
+      return { posts: rows, total: Number(countResult?.count ?? 0) };
     }),
 
-  // List posts for a specific initiative so detail pages can preserve context
   listByInitiative: publicProcedure
     .input(z.object({
       initiativeId: z.number(),
@@ -67,7 +67,6 @@ export const postsRouter = router({
       return { posts: rows, total: rows.length };
     }),
 
-  // Create post
   create: protectedProcedure
     .input(z.object({
       content: z.string().min(5).max(5000),
@@ -85,7 +84,6 @@ export const postsRouter = router({
         initiativeId: input.initiativeId || null,
       });
 
-      // Update contribution score through the PostgreSQL Drizzle schema.
       try {
         await db.update(userProfiles)
           .set({ contributionScore: sql`${userProfiles.contributionScore} + 5` })
@@ -97,7 +95,6 @@ export const postsRouter = router({
       return { success: true };
     }),
 
-  // Get comments for a post
   getComments: publicProcedure
     .input(z.object({ postId: z.number() }))
     .query(async ({ input }) => {
@@ -119,7 +116,6 @@ export const postsRouter = router({
       return rows;
     }),
 
-  // Add comment
   addComment: protectedProcedure
     .input(z.object({
       postId: z.number(),
@@ -142,7 +138,6 @@ export const postsRouter = router({
       return { success: true };
     }),
 
-  // Toggle like
   toggleLike: protectedProcedure
     .input(z.object({ postId: z.number() }))
     .mutation(async ({ ctx, input }) => {
@@ -178,7 +173,6 @@ export const postsRouter = router({
       }
     }),
 
-  // Check like status
   getLikeStatus: protectedProcedure
     .input(z.object({ postId: z.number() }))
     .query(async ({ ctx, input }) => {
@@ -196,7 +190,6 @@ export const postsRouter = router({
       return { liked: existing.length > 0 };
     }),
 
-  // Report content
   reportContent: protectedProcedure
     .input(z.object({
       reportableType: z.enum(["post", "comment", "initiative"]),

@@ -1,6 +1,5 @@
-import { useEffect } from "react";
 import { motion } from "framer-motion";
-import { useRoute, Link, useRouter } from "wouter";
+import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { getCivicVisual } from "@/lib/civicVisuals";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
-  MapPin, Calendar, Users, Clock, Phone, ExternalLink,
+  MapPin, Calendar, Users, Phone, ExternalLink,
   ArrowLeft, Bookmark, CheckCircle, TreePine, GraduationCap,
   Heart, Droplets, PawPrint, AlertTriangle, HandHeart,
   Megaphone, MessageCircle, Share2, Building2,
@@ -37,7 +36,6 @@ const categoryColors: Record<string, string> = {
 
 export default function InitiativeDetail() {
   const [, params] = useRoute<{ id: string }>("/initiative/:id");
-  const router = useRouter();
   const { isAuthenticated } = useAuth();
   const id = parseInt(params?.id || "0");
 
@@ -57,9 +55,12 @@ export default function InitiativeDetail() {
     { initiativeId: id },
     { enabled: !!id && isAuthenticated }
   );
+  const utils = trpc.useUtils();
   const toggleBookmark = trpc.initiatives.toggleBookmark.useMutation({
     onSuccess: (data) => {
       toast.success(data.bookmarked ? "Bookmarked!" : "Bookmark removed");
+      utils.initiatives.getBookmarkStatus.invalidate({ initiativeId: id });
+      utils.initiatives.getById.invalidate({ id });
     },
   });
 

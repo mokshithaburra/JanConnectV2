@@ -1,11 +1,10 @@
 import { z } from "zod";
 import { eq, desc, sql } from "drizzle-orm";
-import { router, adminProcedure, publicProcedure } from "../_core/trpc";
+import { router, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { reports, initiatives, posts, users } from "../../drizzle/schema";
 
 export const adminRouter = router({
-  // List all reports
   listReports: adminProcedure
     .input(z.object({
       status: z.enum(["pending", "reviewed", "resolved", "dismissed"]).optional(),
@@ -31,6 +30,7 @@ export const adminRouter = router({
       })
         .from(reports)
         .leftJoin(users, eq(reports.reporterId, users.id))
+        .where(conditions.length > 0 ? conditions[0] : undefined)
         .orderBy(desc(reports.createdAt))
         .limit(input.limit)
         .offset(input.offset);
@@ -42,7 +42,6 @@ export const adminRouter = router({
       return { reports: rows, total: Number(countResult?.count ?? 0) };
     }),
 
-  // Resolve report
   resolveReport: adminProcedure
     .input(z.object({
       reportId: z.number(),
@@ -61,7 +60,6 @@ export const adminRouter = router({
       return { success: true };
     }),
 
-  // Get pending reports count
   getPendingCount: adminProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { count: 0 };
@@ -73,7 +71,6 @@ export const adminRouter = router({
     return { count: Number(result?.count ?? 0) };
   }),
 
-  // Platform stats
   getStats: adminProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { initiatives: 0, posts: 0, users: 0, reports: 0 };
