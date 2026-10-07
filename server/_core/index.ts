@@ -5,11 +5,29 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
-import { registerMapsProxy } from "./mapsProxy";
 import { storagePut } from "../storage";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+// Trust the file's magic bytes, not the client-supplied content type.
+function detectImageType(buf: Buffer): { mime: string; ext: string } | null {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { mime: "image/jpeg", ext: "jpg" };
+  }
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return { mime: "image/png", ext: "png" };
+  }
+  if (buf.length >= 6 && /^GIF8[79]a$/.test(buf.subarray(0, 6).toString("latin1"))) {
+    return { mime: "image/gif", ext: "gif" };
+  }
+  if (buf.length >= 12 && buf.subarray(0, 4).toString("latin1") === "RIFF" && buf.subarray(8, 12).toString("latin1") === "WEBP") {
+    return { mime: "image/webp", ext: "webp" };
+  }
+  return null;
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -37,28 +55,25 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
-  registerMapsProxy(app);
   registerOAuthRoutes(app);
 
-  // Media upload endpoint for community posts (S3 storage)
+  // Media upload endpoint for community posts. Body: { file: base64, filename, contentType }.
   app.post("/api/upload-media", async (req, res) => {
     try {
-      const files = (req as any).files as { file: any[] } | undefined;
-      const file = files?.file?.[0] || (req as any).file;
-      if (!file) {
-        const body = (req as any).body;
-        if (body?.file) {
-          const buffer = Buffer.from(body.file, "base64");
-          const ext = body.filename?.split(".").pop() || "png";
-          const key = `community-posts/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
-          const { url } = await storagePut(key, buffer, body.contentType || "image/png");
-          return res.json({ key, url });
-        }
+      const body = req.body;
+      if (typeof body?.file !== "string" || !body.file) {
         return res.status(400).json({ error: "No file provided" });
       }
-      const f = Array.isArray(file) ? file[0] : file;
-      const key = `community-posts/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${f.mimetype.split("/").pop()}`;
-      const { url } = await storagePut(key, Buffer.from(f.buffer), f.mimetype);
+      const buffer = Buffer.from(body.file, "base64");
+      if (buffer.length > MAX_UPLOAD_BYTES) {
+        return res.status(413).json({ error: "File must be 5 MB or smaller" });
+      }
+      const type = detectImageType(buffer);
+      if (!type) {
+        return res.status(415).json({ error: "Only JPEG, PNG, WebP and GIF images are allowed" });
+      }
+      const key = `community-posts/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${type.ext}`;
+      const { url } = await storagePut(key, buffer, type.mime);
       res.json({ key, url });
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -70,6 +85,10 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      onError({ path, error }) {
+        console.error(`[tRPC] ${path ?? "<no path>"} failed:`, error.message);
+        if (error.cause) console.error("[tRPC] cause:", error.cause);
+      },
     })
   );
   if (process.env.NODE_ENV === "development") {

@@ -67,8 +67,8 @@ export default function Community() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File size must be under 10MB");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be under 5 MB");
       return;
     }
     setMediaFile(file);
@@ -185,7 +185,7 @@ export default function Community() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,video/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
                   className="hidden"
                   onChange={handleFileSelect}
                   aria-label="Upload media"

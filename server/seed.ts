@@ -654,11 +654,11 @@ export async function seedDatabase() {
 
     console.log("[Seed] Inserting sample users...");
     const sampleUsers = [
-      { openId: "seed_user_1", name: "Priya Sharma", email: "priya@example.com", loginMethod: "manus", role: "user" as const },
-      { openId: "seed_user_2", name: "Rahul Verma", email: "rahul@example.com", loginMethod: "manus", role: "user" as const },
-      { openId: "seed_user_3", name: "Ananya Patel", email: "ananya@example.com", loginMethod: "manus", role: "user" as const },
-      { openId: "seed_user_4", name: "Vikram Singh", email: "vikram@example.com", loginMethod: "manus", role: "user" as const },
-      { openId: "seed_user_5", name: "Meera Nair", email: "meera@example.com", loginMethod: "manus", role: "user" as const },
+      { openId: "seed_user_1", name: "Priya Sharma", email: "priya@example.com", loginMethod: "google", role: "user" as const },
+      { openId: "seed_user_2", name: "Rahul Verma", email: "rahul@example.com", loginMethod: "google", role: "user" as const },
+      { openId: "seed_user_3", name: "Ananya Patel", email: "ananya@example.com", loginMethod: "google", role: "user" as const },
+      { openId: "seed_user_4", name: "Vikram Singh", email: "vikram@example.com", loginMethod: "google", role: "user" as const },
+      { openId: "seed_user_5", name: "Meera Nair", email: "meera@example.com", loginMethod: "google", role: "user" as const },
     ];
     await db.insert(users).values(sampleUsers).onConflictDoNothing();
     const seededUsers = await db.select().from(users).limit(10);

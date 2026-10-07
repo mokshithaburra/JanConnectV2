@@ -29,7 +29,7 @@ export const initiativeStatusEnum = pgEnum("initiative_status", ["upcoming", "on
 export const reportableTypeEnum = pgEnum("reportable_type", ["post", "comment", "initiative"]);
 export const reportStatusEnum = pgEnum("report_status", ["pending", "reviewed", "resolved", "dismissed"]);
 
-/** Core user table backing the Manus OAuth session flow. */
+/** Core user table backing the Google OAuth session flow. */
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),

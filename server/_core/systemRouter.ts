@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 
 export const systemRouter = router({
@@ -20,10 +19,8 @@ export const systemRouter = router({
         content: z.string().min(1, "content is required"),
       })
     )
-    .mutation(async ({ input }) => {
-      const delivered = await notifyOwner(input);
-      return {
-        success: delivered,
-      } as const;
-    }),
+    // No notification channel is configured, so nothing is delivered.
+    .mutation(() => ({
+      success: false,
+    }) as const),
 });
