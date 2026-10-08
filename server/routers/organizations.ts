@@ -1,12 +1,11 @@
 import { z } from "zod";
 import { eq, desc, sql } from "drizzle-orm";
-import { router, publicProcedure, protectedProcedure, adminProcedure } from "../_core/trpc";
+import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { id, imageUrl, linkUrl, offset } from "./inputs";
 import { organizations, initiatives } from "../../drizzle/schema";
 
 export const organizationsRouter = router({
-  // List all organizations
   list: publicProcedure
     .input(z.object({
       limit: z.number().min(1).max(50).default(20),
@@ -33,13 +32,14 @@ export const organizationsRouter = router({
         .limit(input.limit)
         .offset(input.offset);
 
+      const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(organizations);
+
       return {
         organizations: rows.map(row => ({ ...row, initiativeCount: Number(row.initiativeCount ?? 0) })),
-        total: rows.length,
+        total: Number(countResult?.count ?? 0),
       };
     }),
 
-  // Get organization by ID
   getById: publicProcedure
     .input(z.object({ id }))
     .query(async ({ input }) => {
@@ -78,7 +78,6 @@ export const organizationsRouter = router({
       return { ...orgs[0], initiatives: orgInitiatives };
     }),
 
-  // Update organization (admin only)
   update: adminProcedure
     .input(z.object({
       id,
