@@ -13,10 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog, type ConfirmState } from "@/components/ConfirmDialog";
 import { toast } from "sonner";
 import {
   Shield, AlertTriangle, CheckCircle, XCircle,
@@ -43,33 +40,6 @@ const formatDate = (value: Date | string | null | undefined) =>
 // Validation failures come back as zod issue lists; everything else carries a readable message.
 const errorMessage = (error: { message: string; data?: { code?: string } | null }, fallback: string) =>
   error.data?.code === "BAD_REQUEST" ? `${fallback}: some fields are invalid` : error.message || fallback;
-
-type ConfirmState = { title: string; description: string; actionLabel: string; onConfirm: () => void } | null;
-
-function ConfirmDialog({ state, onClose }: { state: ConfirmState; onClose: () => void }) {
-  return (
-    <AlertDialog open={!!state} onOpenChange={(open) => !open && onClose()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{state?.title}</AlertDialogTitle>
-          <AlertDialogDescription>{state?.description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-red-500 hover:bg-red-600 text-white"
-            onClick={() => {
-              state?.onConfirm();
-              onClose();
-            }}
-          >
-            {state?.actionLabel}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
 
 function Pager({ page, total, onPage }: { page: number; total: number; onPage: (page: number) => void }) {
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));

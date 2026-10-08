@@ -3,10 +3,14 @@ import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
+import { pathToFileURL } from "url";
 
 export async function setupVite(app: Express, server: Server) {
+  // Loaded lazily so production bundles (and the Vercel function) don't pull in Vite and its plugins.
+  const { createServer: createViteServer } = await import("vite");
+  // A computed specifier keeps esbuild from inlining the config (and hoisting its plugin imports).
+  const configUrl = pathToFileURL(path.resolve(import.meta.dirname, "../../vite.config.ts")).href;
+  const { default: viteConfig } = await import(configUrl);
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
@@ -50,8 +54,8 @@ export async function setupVite(app: Express, server: Server) {
 export function serveStatic(app: Express) {
   const distPath =
     process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
-      : path.resolve(import.meta.dirname, "public");
+      ? path.resolve(import.meta.dirname, "../..", "public")
+      : path.resolve(import.meta.dirname, "..", "public");
   if (!fs.existsSync(distPath)) {
     console.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
