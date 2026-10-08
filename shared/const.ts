@@ -1,4 +1,9 @@
 export const COOKIE_NAME = "app_session_id";
+// Uploads travel as base64 JSON (~4/3 the file size) and Vercel caps request
+// bodies at 4.5 MB, so 3 MB is the largest file that reliably fits.
+export const MAX_UPLOAD_MB = 3;
+export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
 // Lifetime of the session JWT and its cookie.
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 export const AXIOS_TIMEOUT_MS = 30_000;

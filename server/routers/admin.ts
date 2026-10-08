@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { router, adminProcedure, moderatorProcedure } from "../_core/trpc";
 import { ENV } from "../_core/env";
 import { getDb } from "../db";
-import { storageDelete } from "../storage";
+import { deleteComment, deletePost } from "../content";
 import { escapeLike, id, offset } from "./inputs";
 import { comments, initiatives, organizations, posts, reports, users } from "../../drizzle/schema";
 
@@ -41,18 +41,6 @@ export function checkRoleChange(change: {
     });
   }
   return null;
-}
-
-// Removes a post's uploaded image unless another post still points at it.
-async function deleteOrphanedMedia(mediaUrl: string | null) {
-  if (!mediaUrl?.startsWith("/media/community-posts/")) return;
-  try {
-    const db = await getDb();
-    const [stillUsed] = await db.select({ id: posts.id }).from(posts).where(eq(posts.mediaUrl, mediaUrl)).limit(1);
-    if (!stillUsed) await storageDelete(mediaUrl.slice("/media/".length));
-  } catch (error) {
-    console.error("[Admin] Failed to delete post media:", error);
-  }
 }
 
 export const adminRouter = router({
@@ -338,41 +326,14 @@ export const adminRouter = router({
   deletePost: moderatorProcedure
     .input(z.object({ id }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
-      const deleted = await db.transaction(async tx => {
-        // Locking the post blocks new comments/likes (their FKs need a key-share lock) until we're done.
-        const [post] = await tx.select({ id: posts.id, mediaUrl: posts.mediaUrl }).from(posts)
-          .where(eq(posts.id, input.id))
-          .for("update");
-        if (!post) throw new TRPCError({ code: "NOT_FOUND", message: "Post not found" });
-
-        const commentIds = (await tx.select({ id: comments.id }).from(comments).where(eq(comments.postId, post.id))).map(row => row.id);
-        await tx.delete(reports).where(or(
-          and(eq(reports.reportableType, "post"), eq(reports.reportableId, post.id)),
-          commentIds.length > 0 ? and(eq(reports.reportableType, "comment"), inArray(reports.reportableId, commentIds)) : undefined,
-        ));
-        // Comments and likes are removed by ON DELETE CASCADE.
-        await tx.delete(posts).where(eq(posts.id, post.id));
-        return post;
-      });
-
-      await deleteOrphanedMedia(deleted.mediaUrl);
+      await deletePost(input.id);
       return { success: true };
     }),
 
   deleteComment: moderatorProcedure
     .input(z.object({ id }))
     .mutation(async ({ input }) => {
-      const db = await getDb();
-      await db.transaction(async tx => {
-        const [deleted] = await tx.delete(comments).where(eq(comments.id, input.id)).returning({ postId: comments.postId });
-        if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "Comment not found" });
-
-        await tx.delete(reports).where(and(eq(reports.reportableType, "comment"), eq(reports.reportableId, input.id)));
-        await tx.update(posts)
-          .set({ commentCount: sql`greatest(${posts.commentCount} - 1, 0)` })
-          .where(eq(posts.id, deleted.postId));
-      });
+      await deleteComment(input.id);
       return { success: true };
     }),
 });

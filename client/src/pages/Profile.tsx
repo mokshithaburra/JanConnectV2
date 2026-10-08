@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -12,10 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { PostCard } from "@/components/PostCard";
+import { ConfirmDialog, type ConfirmState } from "@/components/ConfirmDialog";
 import {
   User, MapPin, Award, Settings, LogOut, Bookmark, TrendingUp, Loader2,
-  Compass, MessageCircle, Sparkles, Sprout, Radio, ArrowUpRight, LockKeyhole,
+  Compass, MessageCircle, Sparkles, Sprout, Radio, ArrowUpRight, LockKeyhole, Heart, FileText,
 } from "lucide-react";
+
+const MY_POSTS_PAGE_SIZE = 5;
 
 const badgeIcons = {
   seedling: Sprout,
@@ -63,6 +67,25 @@ export default function Profile() {
   const profileStats = trpc.profiles.getStats.useQuery(undefined, { enabled: isAuthenticated });
   const participation = trpc.profiles.getParticipation.useQuery(undefined, { enabled: isAuthenticated });
   const bookmarks = trpc.initiatives.getUserBookmarks.useQuery(undefined, { enabled: isAuthenticated });
+  const utils = trpc.useUtils();
+  const [myPostsPage, setMyPostsPage] = useState(0);
+  const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const myPosts = trpc.posts.listMine.useQuery(
+    { limit: MY_POSTS_PAGE_SIZE, offset: myPostsPage * MY_POSTS_PAGE_SIZE },
+    { enabled: isAuthenticated }
+  );
+  const myPostsPages = Math.max(1, Math.ceil((myPosts.data?.total ?? 0) / MY_POSTS_PAGE_SIZE));
+  const deletePost = trpc.posts.delete.useMutation({
+    onSuccess: () => {
+      // Step back if the last post on this page was removed.
+      if (myPosts.data?.posts.length === 1 && myPostsPage > 0) setMyPostsPage(myPostsPage - 1);
+      utils.posts.invalidate();
+      utils.profiles.getStats.invalidate();
+      toast.success("Post deleted");
+    },
+    onError: (error) => toast.error(error.message || "Failed to delete post"),
+  });
+
   const updateProfile = trpc.profiles.update.useMutation({
     onSuccess: () => {
       profile.refetch();
@@ -255,6 +278,51 @@ export default function Profile() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="mt-6">
+        <Card className="border-border/50">
+          <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-jan-green" />My posts</CardTitle></CardHeader>
+          <CardContent>
+            {myPosts.isLoading ? (
+              <div className="space-y-3">{Array.from({ length: 2 }).map((_, index) => <div key={index} className="h-24 animate-pulse rounded-lg bg-muted" />)}</div>
+            ) : !myPosts.data?.posts.length ? (
+              <div className="py-8 text-center"><MessageCircle className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" /><p className="text-sm text-muted-foreground">You haven't posted anything yet.</p></div>
+            ) : (
+              <div className="space-y-4">
+                {myPosts.data.posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    onDelete={() =>
+                      setConfirm({
+                        title: "Delete this post?",
+                        description: "Your post, its comments, likes and image will be removed. This can't be undone.",
+                        actionLabel: "Delete post",
+                        onConfirm: () => deletePost.mutate({ id: post.id }),
+                      })
+                    }
+                  >
+                    <div className="flex items-center gap-4 pt-3 border-t border-border/30 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1.5" aria-label={`${post.likeCount} likes`}><Heart className="w-4 h-4" />{post.likeCount}</span>
+                      <span className="flex items-center gap-1.5" aria-label={`${post.commentCount} comments`}><MessageCircle className="w-4 h-4" />{post.commentCount}</span>
+                    </div>
+                  </PostCard>
+                ))}
+              </div>
+            )}
+            {myPostsPages > 1 && (
+              <div className="flex items-center justify-between pt-4 text-xs text-muted-foreground">
+                <span>Page {myPostsPage + 1} of {myPostsPages}</span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" disabled={myPostsPage === 0} onClick={() => setMyPostsPage(myPostsPage - 1)}>Previous</Button>
+                  <Button size="sm" variant="outline" disabled={myPostsPage + 1 >= myPostsPages} onClick={() => setMyPostsPage(myPostsPage + 1)}>Next</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
 
       <div className="mt-6 text-center"><Button variant="outline" onClick={() => logout()} className="border-destructive/30 text-destructive hover:bg-destructive/5"><LogOut className="mr-2 h-4 w-4" />Sign Out</Button></div>
     </div>

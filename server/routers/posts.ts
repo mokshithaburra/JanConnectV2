@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, and, desc, sql, type AnyColumn } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { deleteComment, deletePost } from "../content";
 import { id, mediaPath, offset } from "./inputs";
 import { posts, comments, postLikes, reports, users, initiatives, userProfiles } from "../../drizzle/schema";
 
@@ -78,6 +79,53 @@ export const postsRouter = router({
         .limit(input.limit);
 
       return { posts: rows, total: rows.length };
+    }),
+
+  listMine: protectedProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(50).default(10),
+      offset,
+    }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      const mine = eq(posts.userId, ctx.user.id);
+
+      const [rows, [countResult]] = await Promise.all([
+        db.select({
+          id: posts.id,
+          content: posts.content,
+          mediaUrl: posts.mediaUrl,
+          initiativeId: posts.initiativeId,
+          likeCount: posts.likeCount,
+          commentCount: posts.commentCount,
+          createdAt: posts.createdAt,
+          userId: posts.userId,
+          userName: users.name,
+        })
+          .from(posts)
+          .leftJoin(users, eq(posts.userId, users.id))
+          .where(mine)
+          .orderBy(desc(posts.createdAt))
+          .limit(input.limit)
+          .offset(input.offset),
+        db.select({ count: sql<number>`count(*)` }).from(posts).where(mine),
+      ]);
+
+      return { posts: rows, total: Number(countResult?.count ?? 0) };
+    }),
+
+  delete: protectedProcedure
+    .input(z.object({ id }))
+    .mutation(async ({ ctx, input }) => {
+      await deletePost(input.id, { authorId: ctx.user.id });
+      return { success: true };
+    }),
+
+  deleteComment: protectedProcedure
+    .input(z.object({ id }))
+    .mutation(async ({ ctx, input }) => {
+      await deleteComment(input.id, { authorId: ctx.user.id });
+      return { success: true };
     }),
 
   create: protectedProcedure

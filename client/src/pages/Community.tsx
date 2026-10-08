@@ -4,19 +4,20 @@ import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@shared/const";
+import { prepareImageForUpload } from "@/lib/prepareImage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PostCard } from "@/components/PostCard";
+import { ConfirmDialog, type ConfirmState } from "@/components/ConfirmDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Heart, MessageCircle, Send, Image, Loader2, MoreHorizontal,
-  Flag, Share2, X,
+  Heart, MessageCircle, Send, Image, Loader2,
+  Flag, Trash2, X,
 } from "lucide-react";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 
@@ -34,6 +35,8 @@ export default function Community() {
   const [reportReason, setReportReason] = useState("");
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [processingImage, setProcessingImage] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmState>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generalFeed = trpc.posts.list.useQuery({ limit: 20 }, { enabled: !initiativeId });
@@ -67,11 +70,55 @@ export default function Community() {
     { enabled: !!activePostId && isAuthenticated }
   );
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size must be under 5 MB");
+  const deletePost = trpc.posts.delete.useMutation({
+    onSuccess: () => {
+      utils.posts.invalidate();
+      utils.profiles.getStats.invalidate();
+      toast.success("Post deleted");
+    },
+    onError: (error) => toast.error(error.message || "Failed to delete post"),
+  });
+  const deleteComment = trpc.posts.deleteComment.useMutation({
+    onSuccess: () => {
+      utils.posts.invalidate();
+      toast.success("Comment deleted");
+    },
+    onError: (error) => toast.error(error.message || "Failed to delete comment"),
+  });
+
+  const confirmDeletePost = (postId: number) =>
+    setConfirm({
+      title: "Delete this post?",
+      description: "Your post, its comments, likes and image will be removed. This can't be undone.",
+      actionLabel: "Delete post",
+      onConfirm: () => deletePost.mutate({ id: postId }),
+    });
+  const confirmDeleteComment = (commentId: number) =>
+    setConfirm({
+      title: "Delete this comment?",
+      description: "Your comment will be removed. This can't be undone.",
+      actionLabel: "Delete comment",
+      onConfirm: () => deleteComment.mutate({ id: commentId }),
+    });
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+
+    // Resize and re-encode before the size check: only the processed bytes are uploaded.
+    let file: File;
+    setProcessingImage(true);
+    try {
+      file = await prepareImageForUpload(selected);
+    } catch {
+      toast.error("Couldn't process this image. Try a JPEG or PNG.");
+      return;
+    } finally {
+      setProcessingImage(false);
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`File size must be under ${MAX_UPLOAD_MB} MB`);
       return;
     }
     setMediaFile(file);
@@ -208,7 +255,7 @@ export default function Community() {
                     <Button
                       size="sm"
                       className="bg-jan-green hover:bg-jan-green-dark text-white btn-press"
-                      disabled={!newPost.trim() || createPost.isPending}
+                      disabled={!newPost.trim() || createPost.isPending || processingImage}
                       onClick={handleCreatePost}
                     >
                     {createPost.isPending ? (
@@ -259,61 +306,11 @@ export default function Community() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.06 }}
             >
-              <Card className="border-border/50 hover:border-border transition-colors">
-                <CardContent className="p-5">
-                  {/* Post Header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-jan-green/10 text-jan-green text-sm font-medium">
-                          {post.userName?.charAt(0).toUpperCase() || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{post.userName || "Anonymous"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/community`);
-                          toast.success("Link copied!");
-                        }}>
-                          <Share2 className="w-4 h-4 mr-2" /> Share
-                        </DropdownMenuItem>
-                        {isAuthenticated && (
-                          <DropdownMenuItem onClick={() => setReportDialog({ open: true, type: "post", id: post.id })}>
-                            <Flag className="w-4 h-4 mr-2 text-red-500" /> Report
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-
-                  {/* Post Content */}
-                  <p className="text-sm text-foreground leading-relaxed mb-4 whitespace-pre-wrap">
-                    {post.content}
-                  </p>
-
-                  {post.mediaUrl && (
-                    <img
-                      src={post.mediaUrl}
-                      alt={post.content.slice(0, 120)}
-                      loading="lazy"
-                      className="w-full max-h-[400px] object-cover rounded-xl border border-border/50 mb-4"
-                      // Hide instead of showing a broken-image icon (e.g. the object was removed).
-                      onError={(e) => { e.currentTarget.style.display = "none"; }}
-                    />
-                  )}
-
+              <PostCard
+                post={post}
+                onDelete={user?.id === post.userId ? () => confirmDeletePost(post.id) : undefined}
+                onReport={isAuthenticated ? () => setReportDialog({ open: true, type: "post", id: post.id }) : undefined}
+              >
                   {/* Post Actions */}
                   <div className="flex items-center gap-4 pt-3 border-t border-border/30">
                     <button
@@ -347,7 +344,9 @@ export default function Community() {
                     >
                       <CommentsSection
                         postId={post.id}
+                        currentUserId={user?.id}
                         onReport={isAuthenticated ? (commentId) => setReportDialog({ open: true, type: "comment", id: commentId }) : undefined}
+                        onDelete={confirmDeleteComment}
                       />
                       {isAuthenticated && (
                         <div className="flex gap-2 mt-3">
@@ -374,12 +373,13 @@ export default function Community() {
                       )}
                     </motion.div>
                   )}
-                </CardContent>
-              </Card>
+              </PostCard>
             </motion.div>
           ))}
         </div>
       )}
+
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
 
       {/* Report Dialog */}
       <Dialog open={reportDialog.open} onOpenChange={(open) => !open && setReportDialog({ open: false, type: "post", id: 0 })}>
@@ -421,7 +421,12 @@ export default function Community() {
   );
 }
 
-function CommentsSection({ postId, onReport }: { postId: number; onReport?: (commentId: number) => void }) {
+function CommentsSection({ postId, currentUserId, onReport, onDelete }: {
+  postId: number;
+  currentUserId?: number;
+  onReport?: (commentId: number) => void;
+  onDelete?: (commentId: number) => void;
+}) {
   const { data: comments, isLoading } = trpc.posts.getComments.useQuery({ postId });
 
   if (isLoading) return <div className="text-sm text-muted-foreground">Loading comments...</div>;
@@ -443,7 +448,16 @@ function CommentsSection({ postId, onReport }: { postId: number; onReport?: (com
             </div>
             <div className="flex items-center gap-2 mt-1 ml-2 text-[10px] text-muted-foreground">
               <span>{formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}</span>
-              {onReport && (
+              {comment.userId === currentUserId && onDelete ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(comment.id)}
+                  className="flex items-center gap-0.5 hover:text-red-500 transition-colors"
+                  aria-label="Delete comment"
+                >
+                  <Trash2 className="w-2.5 h-2.5" /> Delete
+                </button>
+              ) : onReport ? (
                 <button
                   type="button"
                   onClick={() => onReport(comment.id)}
@@ -452,7 +466,7 @@ function CommentsSection({ postId, onReport }: { postId: number; onReport?: (com
                 >
                   <Flag className="w-2.5 h-2.5" /> Report
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

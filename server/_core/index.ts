@@ -6,6 +6,7 @@ import { createServer } from "http";
 import net from "net";
 import { randomUUID } from "node:crypto";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@shared/const";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { storagePut } from "../storage";
@@ -15,8 +16,6 @@ import { createContext } from "./context";
 import { assertEnv, ENV } from "./env";
 import { sdk } from "./sdk";
 import { serveStatic, setupVite } from "./vite";
-
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 // Trust the file's magic bytes, not the client-supplied content type.
 function detectImageType(buf: Buffer): { mime: string; ext: string } | null {
@@ -113,13 +112,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
-async function startServer() {
+function createApp() {
   assertEnv();
 
   const app = express();
-  const server = createServer(app);
 
-  if (ENV.isProduction) app.set("trust proxy", 1);
+  // One trusted hop: our load balancer, or Vercel's edge, which overwrites
+  // X-Forwarded-For with the client IP, so req.ip (and rate limiting) sees the real client.
+  if (ENV.isProduction || process.env.VERCEL) app.set("trust proxy", 1);
   // CSP is production-only: the Vite dev server relies on inline scripts and HMR.
   app.use(helmet({ contentSecurityPolicy: ENV.isProduction ? contentSecurityPolicy() : false }));
 
@@ -137,8 +137,8 @@ async function startServer() {
   app.use("/api/upload-media", limiter(15 * 60_000, 30), requireSameOriginJson);
   app.use("/api/trpc", limiter(60_000, 300), requireSameOriginJson);
 
-  // A 5 MB file is ~6.7 MB as base64 JSON; everything else is small.
-  app.use("/api/upload-media", express.json({ limit: "7mb" }));
+  // A 3 MB file is ~4.2 MB as base64 JSON (Vercel rejects bodies over 4.5 MB); everything else is small.
+  app.use("/api/upload-media", express.json({ limit: "4.5mb" }));
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ limit: "1mb", extended: true }));
   registerStorageProxy(app);
@@ -159,7 +159,7 @@ async function startServer() {
       }
       const buffer = Buffer.from(body.file, "base64");
       if (buffer.length > MAX_UPLOAD_BYTES) {
-        return res.status(413).json({ error: "File must be 5 MB or smaller" });
+        return res.status(413).json({ error: `File must be ${MAX_UPLOAD_MB} MB or smaller` });
       }
       const type = detectImageType(buffer);
       if (!type) {
@@ -184,19 +184,27 @@ async function startServer() {
       },
     })
   );
+
+  return app;
+}
+
+const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = typeof err?.status === "number" ? err.status : 500;
+  if (status >= 500) console.error("[Express] Unhandled error:", err);
+  const message = status >= 500 && ENV.isProduction ? "Internal server error" : err?.message ?? "Request failed";
+  res.status(status).json({ error: message });
+};
+
+// Local `pnpm dev` / `pnpm start`: serve the client, listen, and shut down cleanly.
+async function startServer(app: express.Express) {
+  const server = createServer(app);
+
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
-
-  const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
-    if (res.headersSent) return next(err);
-    const status = typeof err?.status === "number" ? err.status : 500;
-    if (status >= 500) console.error("[Express] Unhandled error:", err);
-    const message = status >= 500 && ENV.isProduction ? "Internal server error" : err?.message ?? "Request failed";
-    res.status(status).json({ error: message });
-  };
   app.use(errorHandler);
 
   const preferredPort = parseInt(process.env.PORT || "3000");
@@ -230,7 +238,17 @@ async function startServer() {
   process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
-startServer().catch(error => {
-  console.error("[Server] Failed to start:", error);
-  process.exit(1);
-});
+const app = createApp();
+
+// On Vercel the app runs as a single function: Vercel serves public/ from its CDN
+// and owns the HTTP server, so there is nothing to listen on or shut down.
+if (process.env.VERCEL) {
+  app.use(errorHandler);
+} else {
+  startServer(app).catch(error => {
+    console.error("[Server] Failed to start:", error);
+    process.exit(1);
+  });
+}
+
+export default app;
