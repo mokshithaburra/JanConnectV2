@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, desc, sql } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { id, imageUrl, linkUrl, offset } from "./inputs";
 import { organizations, initiatives } from "../../drizzle/schema";
 
 export const organizationsRouter = router({
@@ -9,11 +10,10 @@ export const organizationsRouter = router({
   list: publicProcedure
     .input(z.object({
       limit: z.number().min(1).max(50).default(20),
-      offset: z.number().min(0).default(0),
+      offset,
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { organizations: [], total: 0 };
 
       const rows = await db.select({
         id: organizations.id,
@@ -41,10 +41,9 @@ export const organizationsRouter = router({
 
   // Get organization by ID
   getById: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return null;
 
       const orgs = await db.select({
         id: organizations.id,
@@ -82,18 +81,17 @@ export const organizationsRouter = router({
   // Update organization (admin only)
   update: adminProcedure
     .input(z.object({
-      id: z.number(),
+      id,
       name: z.string().min(2).max(255).optional(),
-      description: z.string().optional(),
-      logoUrl: z.string().optional(),
+      description: z.string().max(5000).optional(),
+      logoUrl: imageUrl.optional(),
       contactEmail: z.string().max(320).optional(),
       contactPhone: z.string().max(64).optional(),
-      website: z.string().max(500).optional(),
+      website: linkUrl.optional(),
       verified: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       const updates: Record<string, unknown> = {};
       if (input.name !== undefined) updates.name = input.name;

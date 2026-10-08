@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { id, mediaPath, offset } from "./inputs";
 import { posts, comments, postLikes, reports, users, initiatives, userProfiles } from "../../drizzle/schema";
 
 export const postsRouter = router({
@@ -9,11 +10,10 @@ export const postsRouter = router({
   list: publicProcedure
     .input(z.object({
       limit: z.number().min(1).max(50).default(20),
-      offset: z.number().min(0).default(0),
+      offset,
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { posts: [], total: 0 };
 
       const rows = await db.select({
         id: posts.id,
@@ -38,12 +38,11 @@ export const postsRouter = router({
   // List posts for a specific initiative so detail pages can preserve context
   listByInitiative: publicProcedure
     .input(z.object({
-      initiativeId: z.number(),
+      initiativeId: id,
       limit: z.number().min(1).max(50).default(20),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { posts: [], total: 0 };
 
       const rows = await db.select({
         id: posts.id,
@@ -71,12 +70,11 @@ export const postsRouter = router({
   create: protectedProcedure
     .input(z.object({
       content: z.string().min(5).max(5000),
-      mediaUrl: z.string().optional(),
-      initiativeId: z.number().optional(),
+      mediaUrl: mediaPath.optional(),
+      initiativeId: id.optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.insert(posts).values({
         userId: ctx.user.id,
@@ -99,10 +97,9 @@ export const postsRouter = router({
 
   // Get comments for a post
   getComments: publicProcedure
-    .input(z.object({ postId: z.number() }))
+    .input(z.object({ postId: id }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
 
       const rows = await db.select({
         id: comments.id,
@@ -122,12 +119,11 @@ export const postsRouter = router({
   // Add comment
   addComment: protectedProcedure
     .input(z.object({
-      postId: z.number(),
+      postId: id,
       content: z.string().min(1).max(1000),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.insert(comments).values({
         postId: input.postId,
@@ -144,10 +140,9 @@ export const postsRouter = router({
 
   // Toggle like
   toggleLike: protectedProcedure
-    .input(z.object({ postId: z.number() }))
+    .input(z.object({ postId: id }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       const existing = await db.select()
         .from(postLikes)
@@ -180,10 +175,9 @@ export const postsRouter = router({
 
   // Check like status
   getLikeStatus: protectedProcedure
-    .input(z.object({ postId: z.number() }))
+    .input(z.object({ postId: id }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return { liked: false };
 
       const existing = await db.select()
         .from(postLikes)
@@ -200,12 +194,11 @@ export const postsRouter = router({
   reportContent: protectedProcedure
     .input(z.object({
       reportableType: z.enum(["post", "comment", "initiative"]),
-      reportableId: z.number(),
+      reportableId: id,
       reason: z.string().min(10).max(500),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.insert(reports).values({
         reportableType: input.reportableType,

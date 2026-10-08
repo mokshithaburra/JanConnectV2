@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, desc, sql } from "drizzle-orm";
 import { router, adminProcedure, publicProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { id, offset } from "./inputs";
 import { reports, initiatives, posts, users } from "../../drizzle/schema";
 
 export const adminRouter = router({
@@ -10,11 +11,10 @@ export const adminRouter = router({
     .input(z.object({
       status: z.enum(["pending", "reviewed", "resolved", "dismissed"]).optional(),
       limit: z.number().min(1).max(100).default(20),
-      offset: z.number().min(0).default(0),
+      offset,
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { reports: [], total: 0 };
 
       const conditions = [];
       if (input.status) conditions.push(eq(reports.status, input.status));
@@ -45,12 +45,11 @@ export const adminRouter = router({
   // Resolve report
   resolveReport: adminProcedure
     .input(z.object({
-      reportId: z.number(),
+      reportId: id,
       status: z.enum(["reviewed", "resolved", "dismissed"]),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.update(reports).set({
         status: input.status,
@@ -64,7 +63,6 @@ export const adminRouter = router({
   // Get pending reports count
   getPendingCount: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return { count: 0 };
 
     const [result] = await db.select({ count: sql<number>`count(*)` })
       .from(reports)
@@ -76,7 +74,6 @@ export const adminRouter = router({
   // Platform stats
   getStats: adminProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return { initiatives: 0, posts: 0, users: 0, reports: 0 };
 
     const [initCount] = await db.select({ count: sql<number>`count(*)` }).from(initiatives);
     const [postCount] = await db.select({ count: sql<number>`count(*)` }).from(posts);

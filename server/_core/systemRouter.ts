@@ -15,8 +15,8 @@ export const systemRouter = router({
   notifyOwner: adminProcedure
     .input(
       z.object({
-        title: z.string().min(1, "title is required"),
-        content: z.string().min(1, "content is required"),
+        title: z.string().min(1, "title is required").max(1200),
+        content: z.string().min(1, "content is required").max(20_000),
       })
     )
     // No notification channel is configured, so nothing is delivered.

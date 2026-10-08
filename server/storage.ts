@@ -60,7 +60,8 @@ export async function storagePut(
   return { key, url: `/media/${key}` };
 }
 
-export async function storageSignedUrl(relKey: string): Promise<string> {
+// Returns null when the object does not exist.
+export async function storageSignedUrl(relKey: string): Promise<string | null> {
   const { baseUrl, headers } = getSupabaseConfig();
   const key = normalizeKey(relKey);
 
@@ -72,6 +73,8 @@ export async function storageSignedUrl(relKey: string): Promise<string> {
 
   if (!resp.ok) {
     const msg = await resp.text().catch(() => resp.statusText);
+    // Storage reports a missing object as HTTP 404, or as 400 with statusCode "404" in the body.
+    if (resp.status === 404 || /"statusCode"\s*:\s*"404"|not_found/i.test(msg)) return null;
     throw new Error(`Storage signed URL failed (${resp.status}): ${msg}`);
   }
 

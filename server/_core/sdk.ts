@@ -22,7 +22,6 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
 class OAuthService {
   constructor() {
-    console.log("[OAuth] Using Google OAuth");
     if (!ENV.googleClientId || !ENV.googleClientSecret) {
       console.error("[OAuth] ERROR: GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not configured!");
     }

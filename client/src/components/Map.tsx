@@ -20,11 +20,18 @@ function loadMapScript() {
 
   mapScriptPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=weekly&libraries=marker,places,geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=weekly&libraries=marker,places,geometry&loading=async`;
     script.async = true;
+    // With loading=async the namespaces fill in after onload, so wait for the
+    // libraries callers use directly (google.maps.Map, google.maps.marker.*).
     script.onload = () => {
-      resolve();
       script.remove();
+      Promise.all([google.maps.importLibrary("maps"), google.maps.importLibrary("marker")])
+        .then(() => resolve())
+        .catch(error => {
+          mapScriptPromise = null;
+          reject(error);
+        });
     };
     script.onerror = () => {
       mapScriptPromise = null;
