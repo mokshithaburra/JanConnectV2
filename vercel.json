@@ -1,7 +1,7 @@
 {
   "regions":["icn1"],
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "pnpm install --frozen-lockfile",
+  "installCommand": "NODE_ENV=development pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
   "rewrites": [
     { "source": "/((?!api/|media/|healthz).*)", "destination": "/index.html" }
