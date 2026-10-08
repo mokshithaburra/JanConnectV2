@@ -1,18 +1,31 @@
 import { z } from "zod";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, type AnyColumn } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { id, mediaPath, offset } from "./inputs";
 import { posts, comments, postLikes, reports, users, initiatives, userProfiles } from "../../drizzle/schema";
+
+// Content the viewer has a pending report on is hidden from them (signed-out visitors see everything).
+function notReportedBy(userId: number | undefined, type: "post" | "comment", itemId: AnyColumn) {
+  if (userId === undefined) return undefined;
+  return sql`not exists (
+    select 1 from ${reports}
+    where ${reports.reportableType} = ${type}
+      and ${reports.reportableId} = ${itemId}
+      and ${reports.reporterId} = ${userId}
+      and ${reports.status} = 'pending'
+  )`;
+}
 
 export const postsRouter = router({
   list: publicProcedure
     .input(z.object({
       limit: z.number().min(1).max(50).default(20),
-      offset: z.number().min(0).default(0),
+      offset,
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return { posts: [], total: 0 };
+      const visible = notReportedBy(ctx.user?.id, "post", posts.id);
 
       const rows = await db.select({
         id: posts.id,
@@ -27,23 +40,23 @@ export const postsRouter = router({
       })
         .from(posts)
         .leftJoin(users, eq(posts.userId, users.id))
+        .where(visible)
         .orderBy(desc(posts.createdAt))
         .limit(input.limit)
         .offset(input.offset);
 
-      const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(posts);
+      const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(posts).where(visible);
 
       return { posts: rows, total: Number(countResult?.count ?? 0) };
     }),
 
   listByInitiative: publicProcedure
     .input(z.object({
-      initiativeId: z.number(),
+      initiativeId: id,
       limit: z.number().min(1).max(50).default(20),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return { posts: [], total: 0 };
 
       const rows = await db.select({
         id: posts.id,
@@ -60,7 +73,7 @@ export const postsRouter = router({
         .from(posts)
         .leftJoin(users, eq(posts.userId, users.id))
         .leftJoin(initiatives, eq(posts.initiativeId, initiatives.id))
-        .where(eq(posts.initiativeId, input.initiativeId))
+        .where(and(eq(posts.initiativeId, input.initiativeId), notReportedBy(ctx.user?.id, "post", posts.id)))
         .orderBy(desc(posts.createdAt))
         .limit(input.limit);
 
@@ -70,12 +83,11 @@ export const postsRouter = router({
   create: protectedProcedure
     .input(z.object({
       content: z.string().min(5).max(5000),
-      mediaUrl: z.string().optional(),
-      initiativeId: z.number().optional(),
+      mediaUrl: mediaPath.optional(),
+      initiativeId: id.optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.insert(posts).values({
         userId: ctx.user.id,
@@ -96,10 +108,9 @@ export const postsRouter = router({
     }),
 
   getComments: publicProcedure
-    .input(z.object({ postId: z.number() }))
-    .query(async ({ input }) => {
+    .input(z.object({ postId: id }))
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return [];
 
       const rows = await db.select({
         id: comments.id,
@@ -110,7 +121,7 @@ export const postsRouter = router({
       })
         .from(comments)
         .leftJoin(users, eq(comments.userId, users.id))
-        .where(eq(comments.postId, input.postId))
+        .where(and(eq(comments.postId, input.postId), notReportedBy(ctx.user?.id, "comment", comments.id)))
         .orderBy(desc(comments.createdAt));
 
       return rows;
@@ -118,12 +129,11 @@ export const postsRouter = router({
 
   addComment: protectedProcedure
     .input(z.object({
-      postId: z.number(),
+      postId: id,
       content: z.string().min(1).max(1000),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.insert(comments).values({
         postId: input.postId,
@@ -139,10 +149,9 @@ export const postsRouter = router({
     }),
 
   toggleLike: protectedProcedure
-    .input(z.object({ postId: z.number() }))
+    .input(z.object({ postId: id }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       const existing = await db.select()
         .from(postLikes)
@@ -174,10 +183,9 @@ export const postsRouter = router({
     }),
 
   getLikeStatus: protectedProcedure
-    .input(z.object({ postId: z.number() }))
+    .input(z.object({ postId: id }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return { liked: false };
 
       const existing = await db.select()
         .from(postLikes)
@@ -193,12 +201,11 @@ export const postsRouter = router({
   reportContent: protectedProcedure
     .input(z.object({
       reportableType: z.enum(["post", "comment", "initiative"]),
-      reportableId: z.number(),
+      reportableId: id,
       reason: z.string().min(10).max(500),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.insert(reports).values({
         reportableType: input.reportableType,

@@ -114,11 +114,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                       My Profile
                     </Link>
                   </DropdownMenuItem>
-                  {user.role === "admin" && (
+                  {(user.role === "admin" || user.role === "moderator") && (
                     <DropdownMenuItem asChild>
                       <Link href="/admin" className="flex items-center gap-2 cursor-pointer">
                         <Shield className="w-4 h-4" />
-                        Admin Panel
+                        {user.role === "moderator" ? "Moderator Panel" : "Admin Panel"}
                       </Link>
                     </DropdownMenuItem>
                   )}

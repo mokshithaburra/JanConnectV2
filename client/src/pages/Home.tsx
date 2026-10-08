@@ -72,8 +72,8 @@ function MapPreview() {
       if (init.latitude == null || init.longitude == null) return;
       const color = colors[init.category] || "#54d99b";
       const pin = new window.google.maps.marker.PinElement({ background: color, borderColor: color, glyphColor: "white", scale: 1.0 });
-      const marker = new window.google.maps.marker.AdvancedMarkerElement({ map, position: { lat: init.latitude, lng: init.longitude }, title: init.title, content: pin.element });
-      marker.addListener("click", () => { window.location.href = `/initiative/${init.id}`; });
+      const marker = new window.google.maps.marker.AdvancedMarkerElement({ map, position: { lat: init.latitude, lng: init.longitude }, title: init.title, content: pin, gmpClickable: true });
+      marker.addEventListener("gmp-click", () => { window.location.href = `/initiative/${init.id}`; });
       markersRef.current.push(marker);
     });
 

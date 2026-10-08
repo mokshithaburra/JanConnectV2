@@ -2,19 +2,18 @@ import { z } from "zod";
 import { eq, desc, sql } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { id, imageUrl } from "./inputs";
 import { userProfiles, users, initiatives, bookmarks, posts } from "../../drizzle/schema";
 
 export const profilesRouter = router({
   getByUserId: publicProcedure
-    .input(z.object({ userId: z.number() }))
+    .input(z.object({ userId: id }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return null;
 
       const userRows = await db.select({
         id: users.id,
         name: users.name,
-        email: users.email,
         createdAt: users.createdAt,
       })
         .from(users)
@@ -45,7 +44,6 @@ export const profilesRouter = router({
 
   me: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return null;
 
     const profileRows = await db.select({
       id: userProfiles.id,
@@ -68,7 +66,6 @@ export const profilesRouter = router({
 
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return { postCount: 0, initiativeCount: 0 };
 
     const [postResult, initiativeResult] = await Promise.all([
       db.select({ count: sql<number>`count(*)` })
@@ -89,11 +86,10 @@ export const profilesRouter = router({
     .input(z.object({
       bio: z.string().max(500).optional(),
       location: z.string().max(255).optional(),
-      avatarUrl: z.string().optional(),
+      avatarUrl: imageUrl.optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       const existing = await db.select()
         .from(userProfiles)
@@ -122,7 +118,6 @@ export const profilesRouter = router({
 
   getParticipation: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return [];
 
     const rows = await db.select({
       id: initiatives.id,

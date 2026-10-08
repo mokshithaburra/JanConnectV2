@@ -1,4 +1,4 @@
-import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS, decodeOAuthState } from "@shared/const";
+import { AXIOS_TIMEOUT_MS, COOKIE_NAME, SESSION_TTL_MS, decodeOAuthState } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -22,7 +22,6 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
 class OAuthService {
   constructor() {
-    console.log("[OAuth] Using Google OAuth");
     if (!ENV.googleClientId || !ENV.googleClientSecret) {
       console.error("[OAuth] ERROR: GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not configured!");
     }
@@ -116,7 +115,7 @@ class SDKServer {
     options: { expiresInMs?: number } = {}
   ): Promise<string> {
     const issuedAt = Date.now();
-    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+    const expiresInMs = options.expiresInMs ?? SESSION_TTL_MS;
     const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1000);
     const secretKey = this.getSessionSecret();
 

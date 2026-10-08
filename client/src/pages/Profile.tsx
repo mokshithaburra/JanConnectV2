@@ -238,9 +238,9 @@ export default function Profile() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <div><label className="mb-1 block text-sm font-medium text-foreground">Display Name</label><Input defaultValue={user?.name || ""} disabled className="border-border/50 opacity-70" /><p className="mt-1 text-[10px] text-muted-foreground">Name set during sign-in</p></div>
-                  <div><label className="mb-1 block text-sm font-medium text-foreground">Location</label><Input defaultValue={profile.data?.profile?.location || ""} onChange={(event) => updateProfile.mutate({ location: event.target.value })} className="border-border/50" placeholder="City, State" /></div>
+                  <div><label className="mb-1 block text-sm font-medium text-foreground">Location</label><Input defaultValue={profile.data?.profile?.location || ""} onBlur={(event) => { if (event.target.value !== (profile.data?.profile?.location || "")) updateProfile.mutate({ location: event.target.value }); }} className="border-border/50" placeholder="City, State" /></div>
                 </div>
-                <div><label className="mb-1 block text-sm font-medium text-foreground">Bio</label><Textarea defaultValue={profile.data?.profile?.bio || ""} onChange={(event) => updateProfile.mutate({ bio: event.target.value })} className="min-h-[86px] border-border/50" placeholder="Tell us about your civic interests..." /></div>
+                <div><label className="mb-1 block text-sm font-medium text-foreground">Bio</label><Textarea defaultValue={profile.data?.profile?.bio || ""} onBlur={(event) => { if (event.target.value !== (profile.data?.profile?.bio || "")) updateProfile.mutate({ bio: event.target.value }); }} className="min-h-[86px] border-border/50" placeholder="Tell us about your civic interests..." /></div>
               </CardContent>
             </Card>
           </motion.div>

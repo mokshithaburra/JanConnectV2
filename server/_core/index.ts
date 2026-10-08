@@ -1,13 +1,19 @@
 import "dotenv/config";
-import express from "express";
+import express, { type ErrorRequestHandler, type RequestHandler } from "express";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import { createServer } from "http";
 import net from "net";
+import { randomUUID } from "node:crypto";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { storagePut } from "../storage";
+import { closeDb, pingDb } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { assertEnv, ENV } from "./env";
+import { sdk } from "./sdk";
 import { serveStatic, setupVite } from "./vite";
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -27,6 +33,65 @@ function detectImageType(buf: Buffer): { mime: string; ext: string } | null {
     return { mime: "image/webp", ext: "webp" };
   }
   return null;
+}
+
+function limiter(windowMs: number, limit: number) {
+  return rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Too many requests, please try again later." },
+  });
+}
+
+// CSRF guard for cookie-authenticated POSTs: requiring JSON forces a CORS
+// preflight for cross-site requests, and a present Origin must match our host.
+const requireSameOriginJson: RequestHandler = (req, res, next) => {
+  if (req.method !== "POST") return next();
+
+  const contentType = (req.get("content-type") ?? "").toLowerCase();
+  if (!contentType.startsWith("application/json")) {
+    res.status(415).json({ error: "Content-Type must be application/json" });
+    return;
+  }
+
+  const origin = req.get("origin");
+  if (origin) {
+    const expectedHost = (ENV.isProduction && req.get("x-forwarded-host")) || req.get("host");
+    let originHost: string | null = null;
+    try {
+      originHost = new URL(origin).host;
+    } catch {}
+    if (!originHost || originHost !== expectedHost) {
+      res.status(403).json({ error: "Cross-origin request rejected" });
+      return;
+    }
+  }
+
+  next();
+};
+
+function contentSecurityPolicy() {
+  // Google Maps needs its script/connect hosts, blob workers and 'unsafe-eval'
+  // (per Google's allowlist CSP guidance). img-src allows any https host so
+  // /media redirects to Supabase and admin-provided logos keep working.
+  return {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-eval'", "blob:", "https://*.googleapis.com", "https://*.gstatic.com", "https://*.google.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "data:", "blob:", "https://*.googleapis.com", "https://*.google.com", "https://*.gstatic.com"],
+      workerSrc: ["'self'", "blob:"],
+      frameSrc: ["https://*.google.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+    },
+  };
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -49,17 +114,45 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  assertEnv();
+
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  if (ENV.isProduction) app.set("trust proxy", 1);
+  // CSP is production-only: the Vite dev server relies on inline scripts and HMR.
+  app.use(helmet({ contentSecurityPolicy: ENV.isProduction ? contentSecurityPolicy() : false }));
+
+  app.get("/healthz", async (_req, res) => {
+    try {
+      await pingDb();
+      res.json({ status: "ok" });
+    } catch (error) {
+      console.error("[Health] Database check failed:", error);
+      res.status(503).json({ status: "unavailable" });
+    }
+  });
+
+  app.use("/api/oauth/callback", limiter(15 * 60_000, 20));
+  app.use("/api/upload-media", limiter(15 * 60_000, 30), requireSameOriginJson);
+  app.use("/api/trpc", limiter(60_000, 300), requireSameOriginJson);
+
+  // A 5 MB file is ~6.7 MB as base64 JSON; everything else is small.
+  app.use("/api/upload-media", express.json({ limit: "7mb" }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ limit: "1mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
   // Media upload endpoint for community posts. Body: { file: base64, filename, contentType }.
   app.post("/api/upload-media", async (req, res) => {
     try {
+      try {
+        await sdk.authenticateRequest(req);
+      } catch {
+        return res.status(401).json({ error: "Sign in to upload media" });
+      }
+
       const body = req.body;
       if (typeof body?.file !== "string" || !body.file) {
         return res.status(400).json({ error: "No file provided" });
@@ -72,12 +165,12 @@ async function startServer() {
       if (!type) {
         return res.status(415).json({ error: "Only JPEG, PNG, WebP and GIF images are allowed" });
       }
-      const key = `community-posts/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${type.ext}`;
+      const key = `community-posts/${randomUUID()}.${type.ext}`;
       const { url } = await storagePut(key, buffer, type.mime);
       res.json({ key, url });
     } catch (error: any) {
       console.error("Upload error:", error);
-      res.status(500).json({ error: "Upload failed", detail: error.message });
+      res.status(500).json({ error: "Upload failed", ...(ENV.isProduction ? {} : { detail: error.message }) });
     }
   });
   app.use(
@@ -97,8 +190,18 @@ async function startServer() {
     serveStatic(app);
   }
 
+  const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
+    if (res.headersSent) return next(err);
+    const status = typeof err?.status === "number" ? err.status : 500;
+    if (status >= 500) console.error("[Express] Unhandled error:", err);
+    const message = status >= 500 && ENV.isProduction ? "Internal server error" : err?.message ?? "Request failed";
+    res.status(status).json({ error: message });
+  };
+  app.use(errorHandler);
+
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  // In production the proxy expects PORT exactly; only hunt for a free port in development.
+  const port = ENV.isProduction ? preferredPort : await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
@@ -107,6 +210,27 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Server] ${signal} received, shutting down`);
+    setTimeout(() => process.exit(1), 10_000).unref();
+    server.close(() => {
+      closeDb()
+        .catch(error => console.error("[Server] Failed to close database pool:", error))
+        .finally(() => process.exit(0));
+    });
+    // Keep-alive and HMR sockets would otherwise hold close() open.
+    if (ENV.isProduction) server.closeIdleConnections();
+    else server.closeAllConnections();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  console.error("[Server] Failed to start:", error);
+  process.exit(1);
+});

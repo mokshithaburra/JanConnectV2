@@ -9,6 +9,10 @@ export function registerStorageProxy(app: Express) {
       res.status(400).send("Missing storage key");
       return;
     }
+    if (key.startsWith("/") || key.includes("..") || key.includes("\\")) {
+      res.status(400).send("Invalid storage key");
+      return;
+    }
 
     if (!ENV.supabaseUrl || !ENV.supabaseServiceRoleKey) {
       const missing = [
@@ -22,7 +26,13 @@ export function registerStorageProxy(app: Express) {
 
     try {
       const url = await storageSignedUrl(key);
-      res.set("Cache-Control", "no-store");
+      if (!url) {
+        res.set("Cache-Control", "no-store");
+        res.status(404).send("Not found");
+        return;
+      }
+      // Signed URLs live for an hour; let browsers reuse the redirect briefly.
+      res.set("Cache-Control", "private, max-age=300");
       res.redirect(307, url);
     } catch (err) {
       console.error("[StorageProxy] failed:", err);

@@ -160,9 +160,10 @@ export default function Explore() {
         map: null,
         position: { lat: m.lat, lng: m.lng },
         title: m.title,
-        content: pin.element,
+        content: pin,
+        gmpClickable: true,
       });
-      marker.addListener("click", () => setSelectedInitiative(m.id));
+      marker.addEventListener("gmp-click", () => setSelectedInitiative(m.id));
       return marker;
     });
 
@@ -222,7 +223,7 @@ export default function Explore() {
       map,
       position: { lat: userLocation.lat, lng: userLocation.lng },
       title: "Your location",
-      content: pin.element,
+      content: pin,
       zIndex: 1000,
     });
     return () => { (userMarker as any).map = null; };

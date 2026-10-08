@@ -605,10 +605,6 @@ const postsData: Omit<InsertPost, "userId" | "initiativeId">[] = [
 
 export async function seedDatabase() {
   const db = await getDb();
-  if (!db) {
-    console.error("[Seed] Database not available");
-    return;
-  }
 
   try {
     console.log("[Seed] Inserting organizations...");

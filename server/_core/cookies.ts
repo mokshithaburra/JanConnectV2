@@ -1,4 +1,5 @@
 import type { CookieOptions, Request } from "express";
+import { ENV } from "./env";
 
 export function isSecureRequest(req: Request) {
   if (req.protocol === "https") return true;
@@ -16,11 +17,10 @@ export function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  const secure = isSecureRequest(req);
   return {
     httpOnly: true,
     path: "/",
-    sameSite: secure ? "none" : "lax",
-    secure,
+    sameSite: "lax",
+    secure: ENV.isProduction || isSecureRequest(req),
   };
 }

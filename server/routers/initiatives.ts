@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, and, or, sql, desc, asc, gte, lt } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { dateString, escapeLike, id, imageUrl, latitude, linkUrl, longitude, offset } from "./inputs";
 import { initiatives, organizations, bookmarks, userProfiles } from "../../drizzle/schema";
 
 const CATEGORIES = [
@@ -27,19 +28,18 @@ export const initiativesRouter = router({
       category: z.enum(CATEGORIES).optional(),
       status: z.enum(STATUSES).optional(),
       verified: z.boolean().optional(),
-      city: z.string().optional(),
-      search: z.string().optional(),
+      city: z.string().max(255).optional(),
+      search: z.string().max(200).optional(),
       sortBy: z.enum(["newest", "oldest", "participants", "name"]).default("newest"),
       limit: z.number().min(1).max(100).default(20),
-      offset: z.number().min(0).default(0),
-      latitude: z.number().optional(),
-      longitude: z.number().optional(),
+      offset,
+      latitude: latitude.optional(),
+      longitude: longitude.optional(),
       radiusKm: z.number().min(1).max(1000).optional(),
       dateFilter: z.enum(["today", "this_week", "this_month", "future", "all"]).optional(),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return { initiatives: [], total: 0 };
 
       const conditions = [];
       if (input.category) conditions.push(eq(initiatives.category, input.category));
@@ -47,11 +47,12 @@ export const initiativesRouter = router({
       if (input.verified !== undefined) conditions.push(eq(initiatives.verified, input.verified));
       if (input.city) conditions.push(eq(initiatives.city, input.city));
       if (input.search) {
+        const pattern = `%${escapeLike(input.search)}%`;
         conditions.push(
           or(
-            sql`${initiatives.title} ILIKE ${`%${input.search}%`}`,
-            sql`${initiatives.description} ILIKE ${`%${input.search}%`}`,
-            sql`${initiatives.address} ILIKE ${`%${input.search}%`}`,
+            sql`${initiatives.title} ILIKE ${pattern}`,
+            sql`${initiatives.description} ILIKE ${pattern}`,
+            sql`${initiatives.address} ILIKE ${pattern}`,
           )!
         );
       }
@@ -149,10 +150,9 @@ export const initiativesRouter = router({
     }),
 
   getById: publicProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return null;
 
       const rows = await db.select({
         id: initiatives.id,
@@ -195,7 +195,6 @@ export const initiativesRouter = router({
 
   getCategories: publicProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return [];
 
     const rows = await db.select({
       category: initiatives.category,
@@ -209,14 +208,13 @@ export const initiativesRouter = router({
 
   getNearby: publicProcedure
     .input(z.object({
-      latitude: z.number(),
-      longitude: z.number(),
+      latitude,
+      longitude,
       radiusKm: z.number().min(1).max(100).default(25),
       limit: z.number().min(1).max(50).default(10),
     }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
 
       const distance = distanceKm(input.latitude, input.longitude);
 
@@ -243,10 +241,9 @@ export const initiativesRouter = router({
     }),
 
   getRelated: publicProcedure
-    .input(z.object({ id: z.number(), limit: z.number().default(4) }))
+    .input(z.object({ id, limit: z.number().int().min(1).max(20).default(4) }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return [];
 
       const init = await db.select().from(initiatives).where(eq(initiatives.id, input.id)).limit(1);
       if (!init[0]) return [];
@@ -274,24 +271,23 @@ export const initiativesRouter = router({
   create: protectedProcedure
     .input(z.object({
       title: z.string().min(5).max(500),
-      description: z.string().min(20),
+      description: z.string().min(20).max(10_000),
       category: z.enum(CATEGORIES),
       status: z.enum(STATUSES).default("upcoming"),
-      address: z.string().optional(),
-      city: z.string().optional(),
-      state: z.string().optional(),
-      latitude: z.number().optional(),
-      longitude: z.number().optional(),
-      startDate: z.string(),
-      endDate: z.string().optional(),
-      organizationId: z.number().optional(),
-      registrationLink: z.string().max(500).optional(),
-      contactInfo: z.string().optional(),
-      imageUrl: z.string().optional(),
+      address: z.string().max(500).optional(),
+      city: z.string().max(255).optional(),
+      state: z.string().max(255).optional(),
+      latitude: latitude.optional(),
+      longitude: longitude.optional(),
+      startDate: dateString,
+      endDate: dateString.optional(),
+      organizationId: id.optional(),
+      registrationLink: linkUrl.optional(),
+      contactInfo: z.string().max(2000).optional(),
+      imageUrl: imageUrl.optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       await db.insert(initiatives).values({
         ...input,
@@ -313,25 +309,24 @@ export const initiativesRouter = router({
 
   update: adminProcedure
     .input(z.object({
-      id: z.number(),
+      id,
       title: z.string().min(5).max(500).optional(),
-      description: z.string().min(20).optional(),
+      description: z.string().min(20).max(10_000).optional(),
       status: z.enum(STATUSES).optional(),
       verified: z.boolean().optional(),
-      address: z.string().optional(),
-      city: z.string().optional(),
-      state: z.string().optional(),
-      latitude: z.number().optional(),
-      longitude: z.number().optional(),
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      contactInfo: z.string().optional(),
-      registrationLink: z.string().optional(),
-      imageUrl: z.string().optional(),
+      address: z.string().max(500).optional(),
+      city: z.string().max(255).optional(),
+      state: z.string().max(255).optional(),
+      latitude: latitude.optional(),
+      longitude: longitude.optional(),
+      startDate: dateString.optional(),
+      endDate: dateString.optional(),
+      contactInfo: z.string().max(2000).optional(),
+      registrationLink: linkUrl.optional(),
+      imageUrl: imageUrl.optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       const updates: Record<string, unknown> = {};
       if (input.title !== undefined) updates.title = input.title;
@@ -354,10 +349,9 @@ export const initiativesRouter = router({
     }),
 
   toggleBookmark: protectedProcedure
-    .input(z.object({ initiativeId: z.number() }))
+    .input(z.object({ initiativeId: id }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database unavailable");
 
       const existing = await db.select()
         .from(bookmarks)
@@ -389,10 +383,9 @@ export const initiativesRouter = router({
     }),
 
   getBookmarkStatus: protectedProcedure
-    .input(z.object({ initiativeId: z.number() }))
+    .input(z.object({ initiativeId: id }))
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return { bookmarked: false };
 
       const existing = await db.select()
         .from(bookmarks)
@@ -407,7 +400,6 @@ export const initiativesRouter = router({
 
   getUserBookmarks: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) return [];
 
     const rows = await db.select({
       id: initiatives.id,
