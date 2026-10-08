@@ -77,7 +77,7 @@ In Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 C
 - [ ] `GET /healthz` returns 200 through the load balancer and is wired to its health check.
 - [ ] Response headers include `Content-Security-Policy` and `Strict-Transport-Security`; the browser console shows no CSP violations on Home, Explore (map view) and Community.
 - [ ] `OWNER_OPEN_ID` set, and the admin panel is reachable only for that account.
-- [ ] `.env` is not in the image or repository (`.dockerignore` and `.gitignore` exclude it).
+- [ ] `.env` is not in the repository (`.gitignore` excludes it).
 - [ ] `pnpm audit` reviewed; remaining advisories are the known dev-only ones (vitest 2.x) and drizzle-orm 0.44 (see below).
 - [ ] Logs are collected; search for `[tRPC] cause:`, `[Database]` and `[StorageProxy]` after launch.
 
