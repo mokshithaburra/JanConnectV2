@@ -1,9 +1,21 @@
 import { z } from "zod";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, type AnyColumn } from "drizzle-orm";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { id, mediaPath, offset } from "./inputs";
 import { posts, comments, postLikes, reports, users, initiatives, userProfiles } from "../../drizzle/schema";
+
+// Content the viewer has a pending report on is hidden from them (signed-out visitors see everything).
+function notReportedBy(userId: number | undefined, type: "post" | "comment", itemId: AnyColumn) {
+  if (userId === undefined) return undefined;
+  return sql`not exists (
+    select 1 from ${reports}
+    where ${reports.reportableType} = ${type}
+      and ${reports.reportableId} = ${itemId}
+      and ${reports.reporterId} = ${userId}
+      and ${reports.status} = 'pending'
+  )`;
+}
 
 export const postsRouter = router({
   list: publicProcedure
@@ -11,8 +23,9 @@ export const postsRouter = router({
       limit: z.number().min(1).max(50).default(20),
       offset,
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
+      const visible = notReportedBy(ctx.user?.id, "post", posts.id);
 
       const rows = await db.select({
         id: posts.id,
@@ -27,11 +40,12 @@ export const postsRouter = router({
       })
         .from(posts)
         .leftJoin(users, eq(posts.userId, users.id))
+        .where(visible)
         .orderBy(desc(posts.createdAt))
         .limit(input.limit)
         .offset(input.offset);
 
-      const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(posts);
+      const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(posts).where(visible);
 
       return { posts: rows, total: Number(countResult?.count ?? 0) };
     }),
@@ -41,7 +55,7 @@ export const postsRouter = router({
       initiativeId: id,
       limit: z.number().min(1).max(50).default(20),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
 
       const rows = await db.select({
@@ -59,7 +73,7 @@ export const postsRouter = router({
         .from(posts)
         .leftJoin(users, eq(posts.userId, users.id))
         .leftJoin(initiatives, eq(posts.initiativeId, initiatives.id))
-        .where(eq(posts.initiativeId, input.initiativeId))
+        .where(and(eq(posts.initiativeId, input.initiativeId), notReportedBy(ctx.user?.id, "post", posts.id)))
         .orderBy(desc(posts.createdAt))
         .limit(input.limit);
 
@@ -95,7 +109,7 @@ export const postsRouter = router({
 
   getComments: publicProcedure
     .input(z.object({ postId: id }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
 
       const rows = await db.select({
@@ -107,7 +121,7 @@ export const postsRouter = router({
       })
         .from(comments)
         .leftJoin(users, eq(comments.userId, users.id))
-        .where(eq(comments.postId, input.postId))
+        .where(and(eq(comments.postId, input.postId), notReportedBy(ctx.user?.id, "comment", comments.id)))
         .orderBy(desc(comments.createdAt));
 
       return rows;

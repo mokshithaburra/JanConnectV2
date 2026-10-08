@@ -22,6 +22,7 @@ import { formatDistanceToNow } from "date-fns";
 
 export default function Community() {
   const { isAuthenticated, user } = useAuth();
+  const utils = trpc.useUtils();
   const [location] = useLocation();
   const queryString = typeof window !== "undefined" ? window.location.search : location.split("?")[1] || "";
   const initiativeIdParam = new URLSearchParams(queryString).get("initiativeId");
@@ -29,7 +30,7 @@ export default function Community() {
   const [newPost, setNewPost] = useState("");
   const [activePostId, setActivePostId] = useState<number | null>(null);
   const [commentText, setCommentText] = useState("");
-  const [reportDialog, setReportDialog] = useState<{ open: boolean; postId: number }>({ open: false, postId: 0 });
+  const [reportDialog, setReportDialog] = useState<{ open: boolean; type: "post" | "comment"; id: number }>({ open: false, type: "post", id: 0 });
   const [reportReason, setReportReason] = useState("");
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -52,9 +53,11 @@ export default function Community() {
   });
   const reportContent = trpc.posts.reportContent.useMutation({
     onSuccess: () => {
-      setReportDialog({ open: false, postId: 0 });
+      setReportDialog({ open: false, type: "post", id: 0 });
       setReportReason("");
-      toast.success("Report submitted. Our team will review it.");
+      // The feeds now exclude the reported item for this user.
+      utils.posts.invalidate();
+      toast.success("Reported. You won't see this anymore.");
     },
     onError: () => toast.error("Failed to submit report"),
   });
@@ -122,8 +125,8 @@ export default function Community() {
       return;
     }
     reportContent.mutate({
-      reportableType: "post",
-      reportableId: reportDialog.postId,
+      reportableType: reportDialog.type,
+      reportableId: reportDialog.id,
       reason: reportReason,
     });
   };
@@ -287,7 +290,7 @@ export default function Community() {
                           <Share2 className="w-4 h-4 mr-2" /> Share
                         </DropdownMenuItem>
                         {isAuthenticated && (
-                          <DropdownMenuItem onClick={() => setReportDialog({ open: true, postId: post.id })}>
+                          <DropdownMenuItem onClick={() => setReportDialog({ open: true, type: "post", id: post.id })}>
                             <Flag className="w-4 h-4 mr-2 text-red-500" /> Report
                           </DropdownMenuItem>
                         )}
@@ -299,6 +302,17 @@ export default function Community() {
                   <p className="text-sm text-foreground leading-relaxed mb-4 whitespace-pre-wrap">
                     {post.content}
                   </p>
+
+                  {post.mediaUrl && (
+                    <img
+                      src={post.mediaUrl}
+                      alt={post.content.slice(0, 120)}
+                      loading="lazy"
+                      className="w-full max-h-[400px] object-cover rounded-xl border border-border/50 mb-4"
+                      // Hide instead of showing a broken-image icon (e.g. the object was removed).
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    />
+                  )}
 
                   {/* Post Actions */}
                   <div className="flex items-center gap-4 pt-3 border-t border-border/30">
@@ -331,7 +345,10 @@ export default function Community() {
                       animate={{ opacity: 1, height: "auto" }}
                       className="mt-4 pt-4 border-t border-border/30"
                     >
-                      <CommentsSection postId={post.id} />
+                      <CommentsSection
+                        postId={post.id}
+                        onReport={isAuthenticated ? (commentId) => setReportDialog({ open: true, type: "comment", id: commentId }) : undefined}
+                      />
                       {isAuthenticated && (
                         <div className="flex gap-2 mt-3">
                           <Input
@@ -365,7 +382,7 @@ export default function Community() {
       )}
 
       {/* Report Dialog */}
-      <Dialog open={reportDialog.open} onOpenChange={(open) => !open && setReportDialog({ open: false, postId: 0 })}>
+      <Dialog open={reportDialog.open} onOpenChange={(open) => !open && setReportDialog({ open: false, type: "post", id: 0 })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -374,7 +391,7 @@ export default function Community() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Why are you reporting this post? Please provide a reason (minimum 10 characters).
+              Why are you reporting this {reportDialog.type}? Please provide a reason (minimum 10 characters).
             </p>
             <Textarea
               placeholder="Describe the issue..."
@@ -383,7 +400,7 @@ export default function Community() {
               className="min-h-[100px]"
             />
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setReportDialog({ open: false, postId: 0 })}>
+              <Button variant="outline" onClick={() => setReportDialog({ open: false, type: "post", id: 0 })}>
                 Cancel
               </Button>
               <Button
@@ -404,7 +421,7 @@ export default function Community() {
   );
 }
 
-function CommentsSection({ postId }: { postId: number }) {
+function CommentsSection({ postId, onReport }: { postId: number; onReport?: (commentId: number) => void }) {
   const { data: comments, isLoading } = trpc.posts.getComments.useQuery({ postId });
 
   if (isLoading) return <div className="text-sm text-muted-foreground">Loading comments...</div>;
@@ -424,9 +441,19 @@ function CommentsSection({ postId }: { postId: number }) {
               <p className="text-xs font-medium text-foreground">{comment.userName || "Anonymous"}</p>
               <p className="text-xs text-foreground mt-0.5">{comment.content}</p>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1 ml-2">
-              {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-            </p>
+            <div className="flex items-center gap-2 mt-1 ml-2 text-[10px] text-muted-foreground">
+              <span>{formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}</span>
+              {onReport && (
+                <button
+                  type="button"
+                  onClick={() => onReport(comment.id)}
+                  className="flex items-center gap-0.5 hover:text-red-500 transition-colors"
+                  aria-label="Report comment"
+                >
+                  <Flag className="w-2.5 h-2.5" /> Report
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ))}

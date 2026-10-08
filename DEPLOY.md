@@ -13,7 +13,7 @@ The server checks these at startup and exits with a list of what is missing.
 | `DATABASE_URL` | yes | `postgresql://USER:PASSWORD@HOST:5432/DATABASE`. Do not add `?sslmode=...`; it overrides the app's TLS settings. |
 | `DATABASE_CA_CERT` | recommended | PEM text of the database CA. When set, the server certificate is verified. Without it TLS is still used, but unverified (a warning is logged). |
 | `DATABASE_POOL_MAX` | no | Max pooled connections, default `10`. Keep it below your pooler's per-client limit. |
-| `JWT_SECRET` | yes | Signs session cookies. At least 32 characters in production, e.g. `openssl rand -base64 48`. Changing it logs everyone out. |
+| `JWT_SECRET` | yes | Signs session cookies (sessions last 30 days, `SESSION_TTL_MS` in `shared/const.ts`). At least 32 characters in production, e.g. `openssl rand -base64 48`. Changing it logs everyone out. |
 | `GOOGLE_CLIENT_ID` | yes | OAuth client ID (server side). |
 | `GOOGLE_CLIENT_SECRET` | yes | OAuth client secret. |
 | `OWNER_OPEN_ID` | no | Google account `sub` that becomes admin on its next login. |
@@ -21,6 +21,7 @@ The server checks these at startup and exits with a list of what is missing.
 | `SUPABASE_SERVICE_ROLE_KEY` | yes in production | Server only. Never expose it to the browser or commit it. |
 | `VITE_GOOGLE_CLIENT_ID` | build time | Same value as `GOOGLE_CLIENT_ID`. Baked into the client bundle at build. |
 | `VITE_GOOGLE_MAPS_API_KEY` | build time | Baked into the client bundle at build. Restrict it (see below). |
+| `VITE_GOOGLE_MAPS_MAP_ID` | build time, required in production | Map ID for advanced markers. Development falls back to Google's `DEMO_MAP_ID`; production builds have no fallback, so markers won't render without it. |
 
 `.env.example` lists the same variables. `VITE_*` values must be present when `pnpm build` runs; changing them later requires a rebuild.
 
@@ -52,7 +53,7 @@ In Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 C
 
 1. Enable **Maps JavaScript API** and **Places API** for the key.
 2. Restrict the key to **HTTP referrers** `https://your-domain.example/*` (plus `http://localhost:3000/*` for development) and to those APIs only. The key is public in the bundle; the referrer restriction is what protects it.
-3. `client/src/components/Map.tsx` uses `mapId: "DEMO_MAP_ID"`, which is meant for development. Create a Map ID in Cloud Console (Map Management) for production.
+3. Create a Map ID in Cloud Console (Map Management, JavaScript, vector or raster) and set it as `VITE_GOOGLE_MAPS_MAP_ID` before `pnpm build`. Only development builds fall back to `DEMO_MAP_ID`.
 
 ## Supabase Storage
 
@@ -70,7 +71,7 @@ In Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 C
 - [ ] `DATABASE_CA_CERT` is set (no "certificate is not verified" warning in the logs).
 - [ ] Migrations applied: `pnpm db:migrate:pg`.
 - [ ] Google OAuth redirect URI and JavaScript origin match the production domain; login round-trip works.
-- [ ] Maps key restricted by referrer and API; production Map ID configured.
+- [ ] Maps key restricted by referrer and API; `VITE_GOOGLE_MAPS_MAP_ID` set at build time.
 - [ ] `post-media` bucket is private and the category images are uploaded; a category card image loads.
 - [ ] Image upload on the Community page works while signed in and is rejected when signed out.
 - [ ] `GET /healthz` returns 200 through the load balancer and is wired to its health check.

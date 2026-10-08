@@ -11,6 +11,8 @@ declare global {
 }
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+// Advanced markers need a Map ID; Google's DEMO_MAP_ID is for development only.
+const GOOGLE_MAPS_MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || (import.meta.env.PROD ? undefined : "DEMO_MAP_ID");
 
 const MAPS_READY_CALLBACK = "__janconnectMapsReady";
 
@@ -86,7 +88,7 @@ export function MapView({
       fullscreenControl: true,
       zoomControl: true,
       streetViewControl: true,
-      mapId: "DEMO_MAP_ID",
+      mapId: GOOGLE_MAPS_MAP_ID,
     });
     if (onMapReady) {
       onMapReady(map.current);

@@ -82,3 +82,19 @@ export async function storageSignedUrl(relKey: string): Promise<string | null> {
   if (!signedURL) throw new Error("Storage returned an empty signed URL");
   return `${baseUrl}${signedURL}`;
 }
+
+export async function storageDelete(relKey: string): Promise<void> {
+  const { baseUrl, headers } = getSupabaseConfig();
+  const key = normalizeKey(relKey);
+
+  const resp = await fetch(`${baseUrl}/object/${BUCKET}`, {
+    method: "DELETE",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: [key] }),
+  });
+
+  if (!resp.ok) {
+    const msg = await resp.text().catch(() => resp.statusText);
+    throw new Error(`Storage delete failed (${resp.status}): ${msg}`);
+  }
+}
