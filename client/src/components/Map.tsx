@@ -12,33 +12,48 @@ declare global {
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+const MAPS_READY_CALLBACK = "__janconnectMapsReady";
+
+// Shared across renders and route changes so the script is only injected once.
 let mapScriptPromise: Promise<void> | null = null;
+
+// With loading=async the namespaces fill in lazily, so wait for the libraries
+// callers use directly (google.maps.Map, google.maps.marker.*).
+async function importLibraries() {
+  const maps = window.google?.maps;
+  if (typeof maps?.importLibrary !== "function") return;
+  await Promise.all([maps.importLibrary("maps"), maps.importLibrary("marker")]);
+}
 
 function loadMapScript() {
   if (mapScriptPromise) return mapScriptPromise;
-  if (window.google?.maps) return Promise.resolve();
+  if (window.google?.maps) {
+    mapScriptPromise = importLibraries();
+    return mapScriptPromise;
+  }
 
   mapScriptPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=weekly&libraries=marker,places,geometry&loading=async`;
-    script.async = true;
-    // With loading=async the namespaces fill in after onload, so wait for the
-    // libraries callers use directly (google.maps.Map, google.maps.marker.*).
-    script.onload = () => {
+    // onload can fire before the API (and importLibrary) is initialized under
+    // loading=async; Google invokes the callback once it is ready.
+    (window as unknown as Record<string, unknown>)[MAPS_READY_CALLBACK] = () => {
+      delete (window as unknown as Record<string, unknown>)[MAPS_READY_CALLBACK];
       script.remove();
-      Promise.all([google.maps.importLibrary("maps"), google.maps.importLibrary("marker")])
-        .then(() => resolve())
-        .catch(error => {
-          mapScriptPromise = null;
-          reject(error);
-        });
+      resolve();
     };
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=weekly&libraries=marker,places,geometry&loading=async&callback=${MAPS_READY_CALLBACK}`;
+    script.async = true;
     script.onerror = () => {
-      mapScriptPromise = null;
+      script.remove();
       reject(new Error("Failed to load Google Maps script"));
     };
     document.head.appendChild(script);
-  });
+  })
+    .then(importLibraries)
+    .catch(error => {
+      mapScriptPromise = null;
+      throw error;
+    });
   return mapScriptPromise;
 }
 
