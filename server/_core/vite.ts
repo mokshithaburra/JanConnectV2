@@ -6,8 +6,10 @@ import path from "path";
 import { pathToFileURL } from "url";
 
 export async function setupVite(app: Express, server: Server) {
-  // Loaded lazily so production bundles (and the Vercel function) don't pull in Vite and its plugins.
-  const { createServer: createViteServer } = await import("vite");
+  // Loaded lazily, through computed specifiers, so production bundles and Vercel's file
+  // tracer don't pull in Vite and its plugins.
+  const vitePackage = "vite";
+  const { createServer: createViteServer } = (await import(vitePackage)) as typeof import("vite");
   // A computed specifier keeps esbuild from inlining the config (and hoisting its plugin imports).
   const configUrl = pathToFileURL(path.resolve(import.meta.dirname, "../../vite.config.ts")).href;
   const { default: viteConfig } = await import(configUrl);

@@ -83,18 +83,18 @@ In Google Cloud Console → APIs & Services → Credentials → your OAuth 2.0 C
 
 ## Deploying to Vercel
 
-The Express app runs as a single Vercel Function (Fluid compute). `server.js` at the repo root re-exports the bundle that `pnpm build` writes to `dist/index.js`; the client build goes to `public/`, which Vercel serves from its CDN. `vercel.json` sets the install and build commands, sends every path except `/api/*`, `/media/*` and `/healthz` to `index.html` (so `/explore`, `/admin` etc. work on refresh), and applies the same security headers the server sends.
+Vercel serves the Vite build in `public/` as static files and runs the Express app as one Vercel Function, `api/index.js`, which wraps the bundle `pnpm build` writes to `dist/index.js`. `vercel.json` (framework: none) sets the install/build commands and output directory, rewrites `/api/*`, `/media/*` and `/healthz` to that function (passing the original path so Express routes as usual), sends every other path that isn't a real file to `index.html` (so `/explore`, `/admin` etc. work on refresh), and applies the same security headers the server sends.
 
 ### Project settings
 
 | Setting | Value |
 |---|---|
-| Framework Preset | **Express** (if Vercel suggests Vite, change it) |
-| Install Command | `pnpm install --frozen-lockfile` (also set in `vercel.json`) |
-| Build Command | `pnpm build` (also set in `vercel.json`) |
-| Output Directory | leave empty; the Express preset serves `public/` |
+| Framework Preset | **Other** (`vercel.json` sets `"framework": null`) |
+| Install Command | leave the override off; `vercel.json` sets `NODE_ENV=development pnpm install --frozen-lockfile` |
+| Build Command | leave the override off; `vercel.json` sets `pnpm build` |
+| Output Directory | leave the override off; `vercel.json` sets `public` |
 | Root Directory | repo root |
-| Function region | same region as the Supabase project (Settings → Functions → Function Region, e.g. Mumbai `bom1` for Supabase `ap-south-1`) |
+| Function region | pinned in `vercel.json` (`"regions": ["icn1"]`, Seoul); it must match the Supabase project's region (`icn1` ↔ Supabase `ap-northeast-2`) |
 
 ### Environment variables
 
